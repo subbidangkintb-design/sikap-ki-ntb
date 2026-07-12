@@ -1,0 +1,115 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .sikap-dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+    margin: 0 0 20px;
+  }
+  .sikap-card {
+    background: var(--body-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .sikap-card strong {
+    display: block;
+    color: var(--body-quiet-color);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .sikap-card span {
+    display: block;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-top: 6px;
+  }
+  .sikap-card small { color: var(--body-quiet-color); }
+  .sikap-risk {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .sikap-pill {
+    border-radius: 999px;
+    color: #111827;
+    display: inline-block;
+    font-weight: 700;
+    padding: 4px 9px;
+  }
+  .risk-rendah { background: #bbf7d0; }
+  .risk-sedang { background: #fde68a; }
+  .risk-tinggi { background: #fecaca; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <div class="sikap-dashboard" aria-label="Ringkasan layanan SIKAP-KI NTB">
+    <div class="sikap-card">
+      <strong>Chatbot hari ini</strong>
+      <span>{{ dashboard_metrics.chatbot_today }}</span>
+      <small>{{ dashboard_metrics.chatbot_week }} pertanyaan minggu ini</small>
+    </div>
+    <div class="sikap-card">
+      <strong>Butuh perhatian</strong>
+      <span>{{ dashboard_metrics.escalated_open }}</span>
+      <small>{{ dashboard_metrics.escalated_total }} total dieskalasi</small>
+    </div>
+    <div class="sikap-card">
+      <strong>Cek merek hari ini</strong>
+      <span>{{ dashboard_metrics.cek_merek_today }}</span>
+      <small>{{ dashboard_metrics.cek_merek_week }} pengecekan minggu ini</small>
+    </div>
+    <div class="sikap-card">
+      <strong>Distribusi risiko</strong>
+      <div class="sikap-risk">
+        <span class="sikap-pill risk-rendah">Rendah {{ dashboard_metrics.risk_distribution.rendah }}</span>
+        <span class="sikap-pill risk-sedang">Sedang {{ dashboard_metrics.risk_distribution.sedang }}</span>
+        <span class="sikap-pill risk-tinggi">Tinggi {{ dashboard_metrics.risk_distribution.tinggi }}</span>
+      </div>
+    </div>
+  </div>
+
+  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+</div>
+{% endblock %}
+
+{% block sidebar %}
+<div id="content-related">
+  <div class="module" id="recent-actions-module">
+    <h2>{% translate 'Recent actions' %}</h2>
+    <h3>{% translate 'My actions' %}</h3>
+    {% load log %}
+    {% get_admin_log 10 as admin_log for_user user %}
+    {% if not admin_log %}
+      <p>{% translate 'None available' %}</p>
+    {% else %}
+      <ul class="actionlist">
+      {% for entry in admin_log %}
+        <li class="{% if entry.is_addition %}addlink{% elif entry.is_change %}changelink{% elif entry.is_deletion %}deletelink{% endif %}">
+          {% if entry.is_deletion or not entry.get_admin_url %}
+            {{ entry.object_repr }}
+          {% else %}
+            <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
+          {% endif %}
+          <br>
+          {% if entry.content_type %}
+            <span class="mini quiet">{% filter capfirst %}{{ entry.content_type.name }}{% endfilter %}</span>
+          {% else %}
+            <span class="mini quiet">{% translate 'Unknown content' %}</span>
+          {% endif %}
+        </li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
