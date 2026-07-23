@@ -1,6 +1,6 @@
 # SIKAP-KI NTB — Backend
 
-Portal layanan Kekayaan Intelektual berbasis AI untuk Kanwil Kemenkum NTB.
+Prototipe pendukung transformasi tata kelola layanan informasi dan konsultasi awal Kekayaan Intelektual pada Kantor Wilayah Kementerian Hukum Nusa Tenggara Barat. Artificial Intelligence digunakan sebagai teknologi pendukung, bukan pengganti petugas atau pemeriksaan resmi DJKI.
 Backend dibangun dengan Django 5 + Django REST Framework, PostgreSQL, dan
 disiapkan untuk konsumsi oleh frontend React terpisah.
 

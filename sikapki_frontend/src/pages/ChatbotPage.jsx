@@ -1,23 +1,26 @@
-import { useRef, useState } from 'react'
-import { AlertTriangle, Bot, Loader2, Send, ThumbsDown, ThumbsUp, UserRound } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, Bot, Loader2, MessageCircle, RotateCcw, Send, ThumbsDown, ThumbsUp, UserRound } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import PageHeader from '../components/PageHeader.jsx'
 import StatusNotice from '../components/StatusNotice.jsx'
+import SpeechToTextButton from '../components/SpeechToTextButton.jsx'
+import FormattedResponse from '../components/FormattedResponse.jsx'
+import TextToSpeechButton from '../components/TextToSpeechButton.jsx'
 import { kirimRating, tanyaChatbot } from '../lib/api.js'
+import { HELPDESK_WHATSAPP_URL } from '../config/service.js'
 
 export default function ChatbotPage() {
-  const [messages, setMessages] = useState([
-    {
-      id: 'welcome',
-      role: 'ai',
-      text: 'Selamat datang. Silakan ajukan pertanyaan tentang layanan Kekayaan Intelektual. Saya akan menjawab berdasarkan konteks dokumen yang tersedia.',
-      sources: [],
-      escalated: false,
-    },
-  ])
+  const [messages, setMessages] = useState(createInitialMessages)
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const formRef = useRef(null)
+  const sessionIdRef = useRef(createSessionId())
+  const messageEndRef = useRef(null)
+
+  useEffect(() => {
+    messageEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [messages, isLoading])
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -26,20 +29,26 @@ export default function ChatbotPage() {
 
     setInput('')
     setError('')
-    setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text: question }])
+    setMessages((current) => [...current, { id: createMessageId(), role: 'user', text: question }])
     setIsLoading(true)
 
     try {
-      const response = await tanyaChatbot(question)
+      const response = await tanyaChatbot(question, sessionIdRef.current)
+      if (response.sesi_id) sessionIdRef.current = response.sesi_id
+      const sources = Array.isArray(response.sumber_dokumen)
+        ? response.sumber_dokumen.filter((source) => source && typeof source.judul === 'string')
+        : []
       setMessages((current) => [
         ...current,
         {
-          id: response.id,
+          id: response.id || createMessageId(),
           role: 'ai',
-          text: response.jawaban,
-          sources: response.sumber_dokumen || [],
-          escalated: response.dieskalasi,
+          text: typeof response.jawaban === 'string' ? response.jawaban : String(response.jawaban || ''),
+          sources,
+          escalated: Boolean(response.dieskalasi),
           rating: null,
+          trackingId: response.pelacakan_id || null,
+          consultationCode: response.kode_konsultasi || null,
         },
       ])
     } catch (err) {
@@ -66,12 +75,20 @@ export default function ChatbotPage() {
     }
   }
 
+  function handleNewConversation() {
+    if (isLoading) return
+    sessionIdRef.current = createSessionId()
+    setMessages(createInitialMessages())
+    setInput('')
+    setError('')
+  }
+
   return (
     <>
       <PageHeader
-        eyebrow="Tanya AI"
-        title="Chatbot informasi Kekayaan Intelektual"
-        description="Ajukan pertanyaan dengan bahasa sehari-hari. Jawaban AI akan menampilkan sumber dokumen bila tersedia dan akan dieskalasi jika konteks tidak cukup."
+        eyebrow="Chatbot Helpdesk KI"
+        title="Informasi awal berbasis pengetahuan resmi"
+        description="Ajukan pertanyaan dengan bahasa sehari-hari. Sistem menampilkan sumber dokumen dan mengeskalasi kebutuhan kompleks kepada petugas Helpdesk KI Kanwil."
       />
       <section className="mx-auto max-w-5xl px-4 py-8">
         {error ? (
@@ -83,17 +100,24 @@ export default function ChatbotPage() {
         ) : null}
 
         <div className="rounded-lg border border-gov-line bg-white shadow-soft">
-          <div className="h-[58vh] min-h-[420px] overflow-y-auto p-4 md:p-6">
-            <div className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gov-line bg-gov-paper px-4 py-3 md:px-6">
+            <p className="text-sm text-slate-600"><strong className="text-gov-navy">Percakapan aktif.</strong> Pertanyaan lanjutan akan memahami topik sebelumnya.</p>
+            <button type="button" onClick={handleNewConversation} disabled={isLoading} className="inline-flex items-center gap-2 rounded-md border border-gov-line bg-white px-3 py-2 text-sm font-bold text-gov-blue hover:border-gov-teal disabled:opacity-50">
+              <RotateCcw size={16} aria-hidden="true" /> Percakapan baru
+            </button>
+          </div>
+          <div className="h-[52dvh] min-h-[320px] overflow-y-auto overscroll-contain p-3 sm:h-[58vh] sm:min-h-[420px] sm:p-4 md:p-6">
+            <div className="space-y-5" role="log" aria-live="polite" aria-relevant="additions" aria-label="Percakapan chatbot">
               {messages.map((message) => (
                 <ChatMessage key={message.id} message={message} onRating={handleRating} />
               ))}
               {isLoading ? (
-                <div className="flex items-center gap-3 text-sm text-slate-600">
+                <div className="flex items-center gap-3 text-sm text-slate-600" role="status">
                   <Loader2 className="h-5 w-5 animate-spin text-gov-teal" aria-hidden="true" />
-                  AI sedang mencari konteks dan menyusun jawaban...
+                  Sedang menelusuri sumber dan menyusun jawaban...
                 </div>
               ) : null}
+              <div ref={messageEndRef} />
             </div>
           </div>
           <form ref={formRef} onSubmit={handleSubmit} className="border-t border-gov-line bg-gov-paper p-4">
@@ -105,7 +129,9 @@ export default function ChatbotPage() {
                 onChange={(event) => setInput(event.target.value)}
                 className="min-h-20 flex-1 rounded-md border border-gov-line px-3 py-3 outline-none focus:border-gov-teal focus:ring-2 focus:ring-gov-mint"
                 placeholder="Contoh: Apa saja syarat daftar merek?"
+                aria-describedby="chat-input-help"
               />
+              <SpeechToTextButton value={input} onChange={setInput} disabled={isLoading} />
               <button
                 type="submit"
                 disabled={isLoading || !input.trim()}
@@ -115,6 +141,7 @@ export default function ChatbotPage() {
                 Kirim
               </button>
             </div>
+            <p id="chat-input-help" className="mt-2 text-xs leading-5 text-slate-500">Tekan <strong>Bicara</strong>, izinkan mikrofon, lalu ucapkan pertanyaan dalam Bahasa Indonesia. Audio ditangani layanan pengenal suara browser dan tidak disimpan oleh portal SIKAP-KI.</p>
           </form>
         </div>
       </section>
@@ -122,11 +149,33 @@ export default function ChatbotPage() {
   )
 }
 
+function createMessageId() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID()
+  }
+  return `message-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function createInitialMessages() {
+  return [{
+    id: 'welcome',
+    role: 'ai',
+    text: 'Selamat datang di layanan informasi SIKAP-KI NTB. Silakan ajukan pertanyaan tentang Kekayaan Intelektual. Anda dapat melanjutkan dengan pertanyaan seperti "apa syaratnya?", "berapa biayanya?", atau "setelah itu bagaimana?".',
+    sources: [],
+    escalated: false,
+  }]
+}
+
+function createSessionId() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID()
+  return `00000000-0000-4000-8000-${Date.now().toString().padStart(12, '0').slice(-12)}`
+}
+
 function ChatMessage({ message, onRating }) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[82%] rounded-lg bg-gov-blue px-4 py-3 text-white">
+        <div className="max-w-[92%] rounded-lg bg-gov-blue px-3 py-3 text-white sm:max-w-[82%] sm:px-4">
           <div className="mb-1 flex items-center justify-end gap-2 text-xs font-bold text-blue-100">
             Anda <UserRound size={15} aria-hidden="true" />
           </div>
@@ -143,8 +192,17 @@ function ChatMessage({ message, onRating }) {
           <AlertTriangle size={19} aria-hidden="true" />
           Perlu arahan petugas
         </div>
-        <p className="text-sm leading-6">{message.text}</p>
-        <p className="mt-3 text-sm font-semibold">Silakan hubungi petugas layanan KI Kanwil Kemenkum NTB untuk tindak lanjut.</p>
+        <FormattedResponse text={message.text} className="text-sm text-amber-950" />
+        <TextToSpeechButton text={message.text} />
+        <a href={HELPDESK_WHATSAPP_URL} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#128c4a] px-4 py-2 text-sm font-bold text-white">
+          <MessageCircle size={17} /> Hubungi Helpdesk KI Kanwil
+        </a>
+        {message.trackingId ? (
+          <div className="mt-3 rounded-lg border border-amber-300 bg-white p-3 text-sm">
+            <p className="font-black">Nomor konsultasi: {message.consultationCode}</p>
+            <Link to={`/status-konsultasi/${message.trackingId}`} className="mt-2 inline-flex font-bold text-gov-blue hover:underline">Pantau tindak lanjut petugas →</Link>
+          </div>
+        ) : null}
         <RatingControls message={message} onRating={onRating} />
       </div>
     )
@@ -152,20 +210,25 @@ function ChatMessage({ message, onRating }) {
 
   return (
     <div className="flex justify-start">
-      <div className="max-w-[86%] rounded-lg border border-gov-line bg-white px-4 py-3 shadow-sm">
+      <div className="max-w-[94%] rounded-lg border border-gov-line bg-white px-3 py-3 shadow-sm sm:max-w-[86%] sm:px-4">
         <div className="mb-2 flex items-center gap-2 text-xs font-bold text-gov-teal">
           <Bot size={16} aria-hidden="true" />
-          AI SIKAP-KI
+          SIKAP-KI NTB
         </div>
-        <p className="whitespace-pre-line text-sm leading-6 text-slate-800">{message.text}</p>
+        <FormattedResponse text={message.text} className="text-sm text-slate-800" />
+        <TextToSpeechButton text={message.text} />
         {message.sources?.length ? (
           <div className="mt-3 rounded-md bg-gov-paper p-3">
             <p className="text-xs font-bold uppercase tracking-wide text-gov-navy">Sumber dokumen</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {message.sources.map((source) => (
-                <span key={source.judul} className="rounded-md border border-gov-line bg-white px-2 py-1 text-xs text-slate-700">
-                  {source.judul}
-                </span>
+                source.url ? (
+                  <a key={`${source.judul}-${source.url}`} href={source.url} target="_blank" rel="noreferrer" className="rounded-md border border-gov-line bg-white px-2 py-1 text-xs font-bold text-gov-blue hover:underline">
+                    {source.judul} ↗
+                  </a>
+                ) : (
+                  <span key={source.judul} className="rounded-md border border-gov-line bg-white px-2 py-1 text-xs text-slate-700">{source.judul}</span>
+                )
               ))}
             </div>
           </div>

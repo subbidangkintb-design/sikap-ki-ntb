@@ -52,6 +52,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     # CorsMiddleware harus diletakkan sepagi mungkin, sebelum CommonMiddleware
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -105,18 +106,41 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # ---------------------------------------------------------------------------
 LANGUAGE_CODE = 'id'
-TIME_ZONE = 'Asia/Makassar'  # WITA — sesuai lokasi Kanwil Kemenkum NTB
+TIME_ZONE = 'Asia/Makassar'  # WITA — sesuai lokasi Kanwil Kementerian Hukum NTB
 USE_I18N = True
 USE_TZ = True
 
 # ---------------------------------------------------------------------------
 # Static & media files
 # ---------------------------------------------------------------------------
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
+# Untuk demo/local LAN tanpa reverse proxy. Pada deployment publik, set False
+# dan layani STATIC_ROOT melalui Nginx/Apache/CDN.
+SERVE_STATIC_FILES = env.bool('SERVE_STATIC_FILES', default=True)
 
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Unggahan logo publik hanya dibaca di memori dan dibatasi 5 MB. File yang
+# disimpan di MEDIA_ROOT hanyalah etiket referensi yang dimasukkan oleh admin.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024
+# File yang lebih besar dari ambang ini otomatis ditulis ke temporary file,
+# sehingga PDF besar tidak memenuhi RAM selama proses upload.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
+MAX_DOCUMENT_UPLOAD_SIZE = env.int(
+    'MAX_DOCUMENT_UPLOAD_SIZE', default=100 * 1024 * 1024,
+)
+MAX_DOCUMENT_TEXT_CHARS = env.int('MAX_DOCUMENT_TEXT_CHARS', default=5_000_000)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -132,7 +156,37 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    'DEFAULT_THROTTLE_RATES': {
+        'chatbot': env('CHATBOT_RATE_LIMIT', default='30/min'),
+        'cek_merek': env('TRADEMARK_RATE_LIMIT', default='20/min'),
+        'uji_pengguna': env('USER_TEST_RATE_LIMIT', default='10/hour'),
+    },
 }
+
+HUMAN_OVERSIGHT_SLA_HOURS = env.int('HUMAN_OVERSIGHT_SLA_HOURS', default=24)
+SERVICE_LOG_RETENTION_DAYS = env.int('SERVICE_LOG_RETENTION_DAYS', default=365)
+
+# Baseline keamanan. Opsi HTTPS tetap nonaktif pada localhost dan diaktifkan
+# lewat environment ketika aplikasi berada di belakang reverse proxy TLS.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_REFERRER_POLICY = 'same-origin'
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=False)
+# Probe container berjalan pada loopback HTTP; hanya endpoint ini yang boleh
+# melewati redirect karena tidak membawa data sensitif.
+SECURE_REDIRECT_EXEMPT = [r'^healthz$']
+SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=False)
+CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=False)
+# Hugging Face/Vercel mengakhiri TLS di reverse proxy. Header ini membuat
+# Django tetap mengenali request asal sebagai HTTPS dan mencegah redirect loop.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False)
+SECURE_HSTS_PRELOAD = env.bool('SECURE_HSTS_PRELOAD', default=False)
 
 # ---------------------------------------------------------------------------
 # CORS — supaya frontend React (port terpisah, mis. 5173/3000) bisa akses API
@@ -152,17 +206,27 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
 # ---------------------------------------------------------------------------
-# Provider AI untuk chatbot RAG dan AI Cek Merek
+# Provider AI pendukung Chatbot Helpdesk KI dan Asisten Penelusuran Awal Merek
 # AI_PROVIDER: ollama | gemini | deepseek
 # ---------------------------------------------------------------------------
-AI_PROVIDER = env('AI_PROVIDER', default='ollama')
-AI_MODEL = env('AI_MODEL', default=env('OLLAMA_MODEL', default='qwen2.5'))
+AI_PROVIDER = env('AI_PROVIDER', default='gemini')
+AI_MODEL = env('AI_MODEL', default=env('OLLAMA_MODEL', default='gemini-3.1-flash-lite'))
+AI_FORCE_IPV4 = env.bool('AI_FORCE_IPV4', default=True)
 
 OLLAMA_BASE_URL = env('OLLAMA_BASE_URL', default='http://localhost:11434')
 OLLAMA_MODEL = env('OLLAMA_MODEL', default=AI_MODEL)
 
 GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
 GEMINI_BASE_URL = env('GEMINI_BASE_URL', default='https://generativelanguage.googleapis.com')
+GEMINI_EMBEDDING_MODEL = env('GEMINI_EMBEDDING_MODEL', default='gemini-embedding-2')
+GEMINI_EMBEDDING_DIMENSIONS = env.int('GEMINI_EMBEDDING_DIMENSIONS', default=768)
+GEMINI_EMBEDDING_BATCH_SIZE = env.int('GEMINI_EMBEDDING_BATCH_SIZE', default=20)
+PDF_OCR_WITH_GEMINI = env.bool('PDF_OCR_WITH_GEMINI', default=True)
+PDF_OCR_BATCH_PAGES = env.int('PDF_OCR_BATCH_PAGES', default=3)
+GEMINI_OCR_MODEL = env('GEMINI_OCR_MODEL', default='gemini-3.1-flash-lite')
+PDF_OCR_WITH_GEMINI = env.bool('PDF_OCR_WITH_GEMINI', default=True)
+PDF_OCR_BATCH_PAGES = env.int('PDF_OCR_BATCH_PAGES', default=3)
+GEMINI_OCR_MODEL = env('GEMINI_OCR_MODEL', default='gemini-3.1-flash-lite')
 
 DEEPSEEK_API_KEY = env('DEEPSEEK_API_KEY', default='')
 DEEPSEEK_BASE_URL = env('DEEPSEEK_BASE_URL', default='https://api.deepseek.com')

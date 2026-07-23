@@ -1,8 +1,14 @@
+import hashlib
+
+from django.conf import settings
+from django.db.models import Max, Min
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
 from chatbot.ai_client import AIProviderError
+from core.permissions import IsSIKAPStaff
 
 from .models import MirrorPDKI, CekMerekLog
 from .serializers import (
@@ -14,17 +20,22 @@ from .serializers import (
 from .services import (
     DISCLAIMER,
     classify_nice_classes,
+    calculate_similarity_percentage,
+    calculate_visual_percentage,
     determine_risk,
     find_similar_trademarks,
     generate_brand_advice,
+    generate_image_embedding,
+    validate_logo_upload,
 )
 
 
-def _get_client_ip(request):
+def _get_client_ip_hash(request):
     forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    if forwarded:
-        return forwarded.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR')
+    ip = forwarded.split(',')[0].strip() if forwarded else request.META.get('REMOTE_ADDR', '')
+    if not ip:
+        return ''
+    return hashlib.sha256(f'{settings.SECRET_KEY}:{ip}'.encode('utf-8')).hexdigest()
 
 
 class MirrorPDKIViewSet(viewsets.ReadOnlyModelViewSet):
@@ -54,6 +65,8 @@ class MirrorPDKIViewSet(viewsets.ReadOnlyModelViewSet):
 
 class CekMerekAIViewSet(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'cek_merek'
 
     def cek(self, request):
         """
@@ -64,20 +77,50 @@ class CekMerekAIViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         nama_merek = serializer.validated_data['nama_merek']
         deskripsi_produk = serializer.validated_data['deskripsi_produk']
+        uploaded_logo = serializer.validated_data.get('logo_merek')
+        selected_classes = serializer.validated_data.get('kelas_nice_dipilih')
+        classification_evidence = []
 
-        try:
-            kelas_nice = classify_nice_classes(deskripsi_produk)
-        except AIProviderError as exc:
-            return Response(
-                {
-                    'detail': (
-                        'Gagal menghubungi provider AI untuk klasifikasi kelas Nice. '
-                        'Pastikan konfigurasi provider AI di .env sudah benar.'
-                    ),
-                    'error': str(exc),
-                },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        if selected_classes:
+            kelas_nice = selected_classes
+            classification_source = 'dipilih_pengguna'
+        else:
+            try:
+                classification = classify_nice_classes(deskripsi_produk)
+            except AIProviderError as exc:
+                return Response(
+                    {
+                        'detail': (
+                            'Gagal menghubungi provider AI untuk klasifikasi kelas Nice. '
+                            'Pastikan konfigurasi provider AI di .env sudah benar.'
+                        ),
+                        'error': str(exc),
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            # Compatibility for mocked/legacy integrations that still return a class list.
+            if isinstance(classification, list):
+                classification = {
+                    'kelas': classification,
+                    'opsi_kelas': [],
+                    'perlu_klarifikasi': False,
+                    'pertanyaan_klarifikasi': '',
+                }
+            if classification.get('perlu_klarifikasi'):
+                return Response({
+                    'perlu_klarifikasi': True,
+                    'pertanyaan_klarifikasi': classification.get('pertanyaan_klarifikasi'),
+                    'opsi_kelas': classification.get('opsi_kelas', []),
+                    'detail': 'Deskripsi perlu dikonfirmasi sebelum pengecekan merek dilanjutkan.',
+                }, status=status.HTTP_200_OK)
+            kelas_nice = classification.get('kelas', [])
+            classification_source = classification.get(
+                'sumber_klasifikasi', 'analisis_ai',
             )
+            classification_evidence = [
+                option for option in classification.get('opsi_kelas', [])
+                if option.get('kelas') in kelas_nice
+            ]
 
         if not kelas_nice:
             return Response(
@@ -85,8 +128,33 @@ class CekMerekAIViewSet(viewsets.ViewSet):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        merek_mirip = find_similar_trademarks(nama_merek, kelas_nice)
+        query_visual_embedding = None
+        if uploaded_logo:
+            try:
+                image_bytes, mime_type = validate_logo_upload(uploaded_logo)
+                query_visual_embedding = generate_image_embedding(image_bytes, mime_type)
+            except ValueError as exc:
+                return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            except AIProviderError as exc:
+                return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        merek_mirip = find_similar_trademarks(
+            nama_merek, kelas_nice, query_visual_embedding=query_visual_embedding,
+        )
+        for item in merek_mirip:
+            if item.get('label_merek_url'):
+                item['label_merek_url'] = request.build_absolute_uri(item['label_merek_url'])
         skor_risiko = determine_risk(merek_mirip)
+        persentase_kemiripan = calculate_similarity_percentage(merek_mirip)
+        persentase_visual = calculate_visual_percentage(merek_mirip)
+        referensi_visual = sum(1 for item in merek_mirip if item.get('skor_visual') is not None)
+        cakupan_data = _get_data_coverage(kelas_nice)
+        metodologi = [
+            'Nama dibandingkan setelah normalisasi tanda baca dan kata label umum.',
+            'Pembanding dibatasi pada kelas Nice yang dipilih atau dikonfirmasi.',
+            'Skor visual hanya dihitung jika pengguna mengunggah logo dan etiket pembanding tersedia.',
+            'Hasil merupakan indikator penelusuran awal, bukan probabilitas keputusan pemeriksa DJKI.',
+        ]
 
         try:
             saran_naratif = generate_brand_advice(
@@ -107,7 +175,13 @@ class CekMerekAIViewSet(viewsets.ViewSet):
                     'kelas_nice_terdeteksi': kelas_nice,
                     'merek_mirip': merek_mirip,
                     'skor_risiko': skor_risiko,
+                    'persentase_kemiripan': persentase_kemiripan,
+                    'persentase_kemiripan_visual': persentase_visual,
+                    'logo_dianalisis': bool(uploaded_logo),
+                    'referensi_visual_dibandingkan': referensi_visual,
                     'disclaimer': DISCLAIMER,
+                    'cakupan_data': cakupan_data,
+                    'metodologi': metodologi,
                 },
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
@@ -117,6 +191,14 @@ class CekMerekAIViewSet(viewsets.ViewSet):
             'merek_mirip': merek_mirip,
             'saran_naratif': saran_naratif,
             'disclaimer': DISCLAIMER,
+            'persentase_kemiripan': persentase_kemiripan,
+            'persentase_kemiripan_visual': persentase_visual,
+            'logo_dianalisis': bool(uploaded_logo),
+            'referensi_visual_dibandingkan': referensi_visual,
+            'sumber_klasifikasi': classification_source,
+            'bukti_klasifikasi': classification_evidence,
+            'cakupan_data': cakupan_data,
+            'metodologi': metodologi,
         }
         log = CekMerekLog.objects.create(
             nama_merek_diajukan=nama_merek,
@@ -124,20 +206,50 @@ class CekMerekAIViewSet(viewsets.ViewSet):
             kelas_nice_terdeteksi=', '.join(kelas_nice),
             skor_risiko=skor_risiko,
             hasil_lengkap=hasil_lengkap,
-            ip_pengguna=_get_client_ip(request),
+            ip_hash=_get_client_ip_hash(request),
         )
         response = {
             'id': log.id,
             'kelas_nice_terdeteksi': kelas_nice,
             'merek_mirip': merek_mirip,
             'skor_risiko': skor_risiko,
+            'persentase_kemiripan': persentase_kemiripan,
+            'persentase_kemiripan_visual': persentase_visual,
+            'logo_dianalisis': bool(uploaded_logo),
+            'referensi_visual_dibandingkan': referensi_visual,
             'saran_naratif': saran_naratif,
             'disclaimer': DISCLAIMER,
+            'sumber_klasifikasi': classification_source,
+            'bukti_klasifikasi': classification_evidence,
+            'cakupan_data': cakupan_data,
+            'metodologi': metodologi,
         }
         return Response(CekMerekAIResponseSerializer(response).data, status=status.HTTP_201_CREATED)
 
 
-class CekMerekLogViewSet(viewsets.ModelViewSet):
+def _get_data_coverage(kelas_nice):
+    queryset = MirrorPDKI.objects.filter(kelas_nice__in=kelas_nice)
+    dates = queryset.aggregate(
+        publikasi_awal=Min('tanggal_publikasi'),
+        publikasi_akhir=Max('tanggal_publikasi'),
+        sinkron_terakhir=Max('tanggal_sinkron_terakhir'),
+    )
+    total = queryset.count()
+    visual = queryset.exclude(visual_embedding=[]).count()
+    labels = queryset.exclude(label_merek='').filter(label_merek__isnull=False).count()
+    return {
+        'kelas': [str(value) for value in kelas_nice],
+        'total_pembanding_kelas': total,
+        'etiket_tersedia': labels,
+        'visual_siap_dibandingkan': visual,
+        'cakupan_visual_persen': round((visual / total) * 100, 1) if total else 0,
+        'publikasi_awal': dates['publikasi_awal'].isoformat() if dates['publikasi_awal'] else None,
+        'publikasi_akhir': dates['publikasi_akhir'].isoformat() if dates['publikasi_akhir'] else None,
+        'sinkron_terakhir': dates['sinkron_terakhir'].isoformat() if dates['sinkron_terakhir'] else None,
+    }
+
+
+class CekMerekLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Membuat entri log setiap kali pengguna mengecek risiko sebuah nama
     merek. `skor_risiko` dan `hasil_lengkap` dihitung otomatis di
@@ -147,27 +259,4 @@ class CekMerekLogViewSet(viewsets.ModelViewSet):
     """
     queryset = CekMerekLog.objects.all()
     serializer_class = CekMerekLogSerializer
-    permission_classes = [permissions.AllowAny]
-
-    def perform_create(self, serializer):
-        nama = serializer.validated_data.get('nama_merek_diajukan', '')
-        mirip = MirrorPDKI.objects.filter(nama_merek__icontains=nama)
-        jumlah_mirip = mirip.count()
-
-        if jumlah_mirip == 0:
-            skor = CekMerekLog.SkorRisiko.RENDAH
-        elif jumlah_mirip <= 2:
-            skor = CekMerekLog.SkorRisiko.SEDANG
-        else:
-            skor = CekMerekLog.SkorRisiko.TINGGI
-
-        hasil_lengkap = {
-            'jumlah_merek_mirip': jumlah_mirip,
-            'contoh_merek_mirip': list(mirip.values_list('nama_merek', flat=True)[:5]),
-        }
-
-        serializer.save(
-            skor_risiko=skor,
-            hasil_lengkap=hasil_lengkap,
-            ip_pengguna=_get_client_ip(self.request),
-        )
+    permission_classes = [IsSIKAPStaff]

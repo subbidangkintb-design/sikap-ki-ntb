@@ -5,6 +5,8 @@ from dataclasses import dataclass
 import requests
 from django.conf import settings
 
+from core.http_client import configure_ai_network
+
 
 class AIProviderError(Exception):
     pass
@@ -14,7 +16,7 @@ class AIProviderError(Exception):
 class AIConfig:
     provider: str
     model: str
-    timeout_seconds: int = 120
+    timeout_seconds: int = 45
 
 
 def generate_answer(prompt: str, config: AIConfig | None = None) -> str:
@@ -65,7 +67,7 @@ def _generate_gemini(prompt: str, config: AIConfig) -> str:
 
     url = (
         f'{settings.GEMINI_BASE_URL.rstrip("/")}/v1beta/models/'
-        f'{config.model}:generateContent?key={settings.GEMINI_API_KEY}'
+        f'{config.model}:generateContent'
     )
     payload = {
         'contents': [
@@ -82,6 +84,7 @@ def _generate_gemini(prompt: str, config: AIConfig) -> str:
         url=url,
         payload=payload,
         timeout=config.timeout_seconds,
+        headers={'x-goog-api-key': settings.GEMINI_API_KEY},
         error_prefix='Gemini API gagal dihubungi atau menolak request.',
     )
 
@@ -133,6 +136,7 @@ def _post_json(
     error_prefix: str,
     headers: dict | None = None,
 ) -> dict:
+    configure_ai_network()
     request_headers = {'Content-Type': 'application/json'}
     if headers:
         request_headers.update(headers)

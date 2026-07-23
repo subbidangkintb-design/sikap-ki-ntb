@@ -1,5 +1,6 @@
 from django.db.models import F, Q
 from rest_framework import viewsets, permissions
+from core.permissions import IsSIKAPStaffOrReadOnly
 from .models import KategoriKI, DokumenResmi, FAQ
 from .serializers import KategoriKISerializer, DokumenResmiSerializer, FAQSerializer
 
@@ -7,13 +8,13 @@ from .serializers import KategoriKISerializer, DokumenResmiSerializer, FAQSerial
 class KategoriKIViewSet(viewsets.ModelViewSet):
     queryset = KategoriKI.objects.all()
     serializer_class = KategoriKISerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [IsSIKAPStaffOrReadOnly]
 
 
 class DokumenResmiViewSet(viewsets.ModelViewSet):
     queryset = DokumenResmi.objects.all()
     serializer_class = DokumenResmiSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [IsSIKAPStaffOrReadOnly]
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
@@ -21,9 +22,12 @@ class DokumenResmiViewSet(viewsets.ModelViewSet):
 
 
 class FAQViewSet(viewsets.ModelViewSet):
-    queryset = FAQ.objects.all()
+    queryset = FAQ.objects.filter(
+        status_validasi=FAQ.StatusValidasi.TERVERIFIKASI,
+        aktif_sumber=True,
+    )
     serializer_class = FAQSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [IsSIKAPStaffOrReadOnly]
 
     def get_queryset(self):
         queryset = super().get_queryset().select_related('kategori')

@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | Ruang Kerja SIKAP-KI NTB{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'sikapki/admin.css' %}">
+{% endblock %}
+
+{% block branding %}
+  <div class="sikap-admin-brand">
+    <a href="{% url 'admin:index' %}" class="sikap-admin-brand__link">
+      <img src="{% static 'sikapki/logo-admin.png' %}" alt="" class="sikap-admin-brand__logo">
+      <span>
+        <strong>SIKAP-KI NTB</strong>
+        <small>Ruang Kerja Petugas</small>
+      </span>
+    </a>
+  </div>
+{% endblock %}
+
+{% block nav-global %}
+  {% if has_permission %}
+    <a class="sikap-portal-link" href="{{ sikap_frontend_url }}" target="_blank" rel="noreferrer">Buka portal publik ↗</a>
+  {% endif %}
+{% endblock %}

@@ -17,7 +17,7 @@ const iconMap = {
 export default function StatusNotice({ tone = 'info', title, children }) {
   const Icon = iconMap[tone] || Info
   return (
-    <div className={`rounded-lg border p-4 ${toneMap[tone] || toneMap.info}`}>
+    <div role={tone === 'error' ? 'alert' : 'status'} aria-live={tone === 'error' ? 'assertive' : 'polite'} className={`rounded-lg border p-4 ${toneMap[tone] || toneMap.info}`}>
       <div className="flex gap-3">
         <Icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
         <div>

@@ -1,0 +1,243 @@
+:root,
+html[data-theme="auto"],
+html[data-theme="light"],
+html[data-theme="dark"] {
+  color-scheme: light;
+  --primary: #173f67;
+  --primary-fg: #ffffff;
+  --secondary: #245c86;
+  --accent: #ffd21a;
+  --body-fg: #1f2937;
+  --body-bg: #f4f7fa;
+  --body-quiet-color: #4b5563;
+  --body-loud-color: #102f4a;
+  --header-bg: #102f4a;
+  --header-color: #ffffff;
+  --header-branding-color: #ffffff;
+  --header-link-color: #ffffff;
+  --breadcrumbs-bg: #245c86;
+  --breadcrumbs-fg: #ffffff;
+  --breadcrumbs-link-fg: #ffffff;
+  --link-fg: #0f6470;
+  --link-hover-color: #0f3e5f;
+  --link-selected-fg: #173f67;
+  --hairline-color: #d7e0e7;
+  --border-color: #c5d0d9;
+  --error-fg: #b42318;
+  --message-success-bg: #dcfce7;
+  --message-warning-bg: #fef3c7;
+  --message-error-bg: #fee2e2;
+  --darkened-bg: #eef3f6;
+  --selected-bg: #e5f2f3;
+  --selected-row: #fff6cc;
+  --button-bg: #0f766e;
+  --button-hover-bg: #0b5f59;
+  --default-button-bg: #173f67;
+  --default-button-hover-bg: #102f4a;
+  --close-button-bg: #4b5563;
+  --close-button-hover-bg: #374151;
+}
+
+body {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f4f7fa;
+  color: #1f2937;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.theme-toggle { display: none !important; }
+
+#header {
+  min-height: 68px;
+  padding: 8px 24px;
+  background: linear-gradient(115deg, #102f4a 0%, #174f77 72%, #126b6a 100%);
+  border-bottom: 4px solid #ffd21a;
+  box-sizing: border-box;
+}
+
+#branding { display: flex; align-items: center; }
+.sikap-admin-brand__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff !important;
+  text-decoration: none !important;
+}
+.sikap-admin-brand__logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #fff;
+  padding: 3px;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, .2);
+}
+.sikap-admin-brand strong { display: block; font-size: 19px; line-height: 1.15; }
+.sikap-admin-brand small { display: block; margin-top: 3px; color: #d8ecf8; font-size: 12px; font-weight: 600; }
+.sikap-portal-link {
+  align-self: center;
+  margin-left: auto;
+  border: 1px solid rgba(255, 255, 255, .35);
+  border-radius: 10px;
+  color: #fff !important;
+  padding: 9px 13px;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none !important;
+}
+.sikap-portal-link:hover { background: rgba(255, 255, 255, .12); }
+
+#user-tools { color: #f8fafc; font-size: 13px; line-height: 1.6; }
+#user-tools a, #user-tools button { color: #ffffff !important; font-weight: 700; }
+.breadcrumbs { padding: 11px 28px; }
+.breadcrumbs a { color: #fff; font-weight: 700; }
+
+.main, #content-start { background: #f4f7fa; }
+
+#nav-sidebar {
+  background: #f8fafc;
+  border-right: 1px solid var(--hairline-color);
+  box-shadow: 3px 0 14px rgba(15, 47, 74, .05);
+}
+#nav-sidebar .module {
+  margin: 8px 7px 12px;
+  border: 1px solid #d2dee7;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+  box-shadow: none;
+}
+#nav-sidebar .module caption {
+  padding: 11px 13px;
+  background: #dceaf2 !important;
+  color: #123b5d !important;
+  border-left: 4px solid #16828a;
+  font-size: 12px;
+  letter-spacing: .04em;
+}
+#nav-sidebar .module caption a.section {
+  background: transparent !important;
+  color: #123b5d !important;
+  font-size: 12px;
+  font-weight: 900;
+  text-shadow: none;
+}
+#nav-sidebar .current-app .section { background: #173f67; color: #fff; }
+#nav-sidebar .current-model { background: #fff6cc; }
+#nav-sidebar table { border-collapse: collapse; }
+#nav-sidebar a { color: #164e63; font-weight: 750; }
+#nav-sidebar td, #nav-sidebar th {
+  background: #ffffff;
+  color: #263746;
+  border-bottom: 1px solid #e2e8ee;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+#nav-sidebar tr:last-child td, #nav-sidebar tr:last-child th { border-bottom: 0; }
+#nav-sidebar tr:hover td, #nav-sidebar tr:hover th { background: #eef7f7; }
+#nav-sidebar .addlink { color: #0f766e !important; font-size: 12px; font-weight: 850; }
+#nav-sidebar .current-model td, #nav-sidebar .current-model th { background: #fff6cc; }
+#nav-filter {
+  margin: 8px 7px 4px;
+  width: calc(100% - 14px);
+  background: #ffffff;
+  color: #1f2937;
+  border: 1px solid #aebcc8;
+  border-radius: 9px;
+}
+
+#content { padding: 24px 28px; }
+#content h1 { color: var(--body-fg); font-size: 26px; font-weight: 800; }
+.module, .inline-group, .submit-row, #changelist-filter {
+  background: #ffffff;
+  color: #1f2937;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--hairline-color);
+  box-shadow: 0 5px 18px rgba(15, 47, 74, .05);
+}
+.module h2, .module caption, .inline-group h2 {
+  background: #245c86;
+  color: #ffffff;
+  padding: 11px 14px;
+  font-weight: 800;
+}
+
+#changelist .actions {
+  background: #ffffff;
+  border-radius: 12px;
+  margin-bottom: 14px;
+  padding: 12px;
+}
+#changelist .results { border-radius: 12px; overflow: auto; }
+#changelist table { background: #ffffff; }
+#changelist table thead th { padding: 12px 10px; background: #eaf1f5; color: #173f67; font-size: 12px; }
+#changelist table thead th a { color: #173f67; }
+#changelist table tbody td, #changelist table tbody th { padding: 12px 10px; vertical-align: middle; }
+#changelist table tbody tr:nth-child(even) td, #changelist table tbody tr:nth-child(even) th { background: #f8fafc; }
+#changelist table tbody tr:hover td, #changelist table tbody tr:hover th { background: #eef8f8; }
+#changelist-filter h2 { padding: 13px 15px; }
+#changelist-filter h3 { font-weight: 800; }
+#changelist-filter { background: #ffffff; color: #1f2937; }
+#changelist-filter a { color: #374151; }
+#changelist-filter li.selected a { color: #0f6470; font-weight: 800; }
+
+input[type="text"], input[type="password"], input[type="email"], input[type="url"],
+input[type="number"], textarea, select {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border-color: #aebcc8 !important;
+  border-radius: 9px !important;
+  padding: 9px 11px !important;
+  min-height: 40px;
+  box-sizing: border-box;
+}
+input:focus, textarea:focus, select:focus { border-color: #16828a !important; box-shadow: 0 0 0 3px rgba(22,130,138,.16); outline: none; }
+textarea { min-height: 110px; }
+.form-row { padding: 15px 14px; background: #ffffff; color: #1f2937; }
+.form-row > div { color: #1f2937; }
+.aligned label { color: #263746; font-size: 13px; font-weight: 750; }
+.help, p.help, div.help, .help li { color: #4b5563 !important; font-size: 13px !important; line-height: 1.6; }
+.readonly { color: #263746 !important; line-height: 1.6; }
+fieldset.collapsed h2 { border-radius: 10px; }
+
+.button, input[type="submit"], input[type="button"], .submit-row input, a.button {
+  border-radius: 9px !important;
+  min-height: 38px;
+  padding: 9px 15px !important;
+  font-weight: 800;
+}
+.object-tools a { border-radius: 9px; padding: 9px 13px; }
+.submit-row {
+  background: rgba(255,255,255,.96);
+  position: sticky;
+  bottom: 10px;
+  z-index: 20;
+  padding: 12px;
+  backdrop-filter: blur(12px);
+}
+.messagelist li { border-radius: 10px; margin-bottom: 8px; }
+.messagelist .success { color: #14532d; }
+.messagelist .warning { color: #713f12; }
+.messagelist .error { color: #7f1d1d; }
+
+.paginator, .change-list .filtered .results, .change-list .filtered .paginator,
+.selector, .selector-available h2, .selector-chosen h2 { background: #ffffff; color: #1f2937; }
+.selector select { min-height: 220px; }
+.errornote, ul.errorlist { color: #991b1b; }
+
+body.login { background: linear-gradient(135deg, #edf4f7, #f8fafc); }
+body.login #container { width: min(430px, calc(100% - 32px)); margin-top: 70px; border-radius: 18px; overflow: hidden; box-shadow: 0 20px 55px rgba(15,47,74,.16); }
+body.login #content { background: #ffffff; padding: 28px; }
+body.login .form-row { padding: 10px 0; }
+body.login .submit-row { position: static; box-shadow: none; border: 0; padding: 12px 0 0; }
+
+@media (max-width: 767px) {
+  #header { padding: 8px 12px; }
+  .sikap-admin-brand__logo { width: 40px; height: 40px; }
+  .sikap-admin-brand strong { font-size: 16px; }
+  .sikap-admin-brand small, .sikap-portal-link { display: none; }
+  #content { padding: 18px 12px; }
+  #content h1 { font-size: 22px; }
+}

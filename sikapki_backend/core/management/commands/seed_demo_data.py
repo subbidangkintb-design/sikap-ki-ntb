@@ -41,6 +41,11 @@ class Command(BaseCommand):
             ('Hak Cipta', 'Hak eksklusif atas ciptaan di bidang ilmu pengetahuan, seni, dan sastra.'),
             ('Paten', 'Hak eksklusif atas invensi di bidang teknologi untuk jangka waktu tertentu.'),
             ('Desain Industri', 'Kreasi bentuk, konfigurasi, atau komposisi garis/warna suatu produk.'),
+            ('Indikasi Geografis', 'Tanda asal produk yang terkait reputasi, kualitas, atau karakteristik geografis.'),
+            ('DTLST', 'Pelindungan atas desain tata letak sirkuit terpadu.'),
+            ('Rahasia Dagang', 'Informasi teknologi atau bisnis bernilai ekonomi yang dijaga kerahasiaannya.'),
+            ('Kekayaan Intelektual Komunal', 'Pengetahuan, ekspresi budaya, dan sumber daya yang dipelihara secara komunal.'),
+            ('Perlindungan Varietas Tanaman', 'Pelindungan atas varietas tanaman hasil kegiatan pemuliaan.'),
         ]
         kategori_map = {}
         for nama, deskripsi in data:
@@ -88,7 +93,7 @@ class Command(BaseCommand):
              'beserta lampiran gambar/foto produk yang diperlukan.'),
             ('FAQ Umum Layanan Kekayaan Intelektual Kanwil NTB', 'Desain Industri',
              'Kumpulan pertanyaan umum lintas jenis KI mengenai alur layanan, '
-             'estimasi waktu proses, dan kontak layanan Kanwil Kemenkum NTB.'),
+             'estimasi waktu proses, dan kontak layanan Kantor Wilayah Kementerian Hukum Nusa Tenggara Barat.'),
         ]
 
         for judul, nama_kategori, teks in dokumen_data:
@@ -130,7 +135,7 @@ class Command(BaseCommand):
              'Bisa, selama tidak memiliki persamaan dengan nama orang terkenal tanpa '
              'izin yang bersangkutan dan memenuhi syarat daya pembeda.'),
             ('Bagaimana cara mengecek apakah nama merek saya masih tersedia?',
-             'Pengecekan awal dapat dilakukan melalui fitur cek merek pada aplikasi '
+             'Penelusuran awal dapat dilakukan melalui Asisten Penelusuran Awal Merek '
              'ini, atau melalui laman resmi PDKI, sebelum mengajukan permohonan resmi.'),
             ('Apa yang terjadi jika merek saya ditolak pemeriksa substantif?',
              'Pemohon berhak mengajukan tanggapan atas penolakan sementara dalam '

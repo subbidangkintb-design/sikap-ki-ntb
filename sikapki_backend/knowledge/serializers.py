@@ -21,9 +21,14 @@ class DokumenResmiSerializer(serializers.ModelSerializer):
         model = DokumenResmi
         fields = [
             'id', 'judul', 'kategori', 'kategori_nama', 'file_asli',
-            'teks_lengkap', 'tanggal_upload', 'diupload_oleh',
+            'teks_lengkap', 'sumber_url', 'status_validasi',
+            'divalidasi_oleh', 'divalidasi_pada', 'tanggal_upload',
+            'diupload_oleh',
         ]
-        read_only_fields = ['tanggal_upload', 'diupload_oleh']
+        read_only_fields = [
+            'status_validasi', 'divalidasi_oleh', 'divalidasi_pada',
+            'tanggal_upload', 'diupload_oleh',
+        ]
 
 
 class FAQSerializer(serializers.ModelSerializer):
@@ -33,6 +38,10 @@ class FAQSerializer(serializers.ModelSerializer):
         model = FAQ
         fields = [
             'id', 'kategori', 'kategori_nama', 'pertanyaan', 'jawaban',
-            'jumlah_dilihat', 'rating_membantu',
+            'jumlah_dilihat', 'rating_membantu', 'sumber_url',
+            'subkategori_sumber', 'divalidasi_pada', 'sinkronisasi_pada',
         ]
-        read_only_fields = ['jumlah_dilihat', 'rating_membantu']
+        read_only_fields = [
+            'jumlah_dilihat', 'rating_membantu', 'sumber_url',
+            'subkategori_sumber', 'divalidasi_pada', 'sinkronisasi_pada',
+        ]

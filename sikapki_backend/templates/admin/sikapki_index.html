@@ -1,111 +1,140 @@
 {% extends "admin/base_site.html" %}
-{% load i18n static %}
+{% load i18n static log %}
 
 {% block extrastyle %}
-{{ block.super }}
-<style>
-  .sikap-dashboard {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-    gap: 12px;
-    margin: 0 0 20px;
-  }
-  .sikap-card {
-    background: var(--body-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 14px;
-  }
-  .sikap-card strong {
-    display: block;
-    color: var(--body-quiet-color);
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-  }
-  .sikap-card span {
-    display: block;
-    font-size: 28px;
-    font-weight: 700;
-    line-height: 1.2;
-    margin-top: 6px;
-  }
-  .sikap-card small { color: var(--body-quiet-color); }
-  .sikap-risk {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 8px;
-  }
-  .sikap-pill {
-    border-radius: 999px;
-    color: #111827;
-    display: inline-block;
-    font-weight: 700;
-    padding: 4px 9px;
-  }
-  .risk-rendah { background: #bbf7d0; }
-  .risk-sedang { background: #fde68a; }
-  .risk-tinggi { background: #fecaca; }
-</style>
+  {{ block.super }}
+  <style>
+    .workspace-hero { display:flex; justify-content:space-between; gap:24px; align-items:center; padding:24px; margin-bottom:20px; border-radius:16px; background:linear-gradient(120deg,#123b5d,#176b71); color:#fff; overflow:hidden; position:relative; }
+    .workspace-hero:after { content:""; position:absolute; width:210px; height:210px; right:-60px; top:-95px; border:35px solid rgba(255,210,26,.16); border-radius:50%; }
+    .workspace-hero h1 { color:#fff !important; margin:0 0 7px !important; font-size:26px !important; }
+    .workspace-hero p { margin:0; max-width:720px; color:#dcecf5; line-height:1.6; }
+    .workspace-date { flex:0 0 auto; border:1px solid rgba(255,255,255,.22); border-radius:12px; padding:10px 14px; background:rgba(255,255,255,.09); font-weight:800; }
+    .section-heading { display:flex; align-items:end; justify-content:space-between; gap:16px; margin:24px 0 12px; }
+    .section-heading h2 { margin:0; font-size:20px; color:#173f67; }
+    .section-heading p { margin:5px 0 0; color:#4b5563; font-size:13px; }
+    .task-grid, .metric-grid, .quick-grid { display:grid; gap:12px; }
+    .task-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+    .metric-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+    .quick-grid { grid-template-columns:repeat(6,minmax(0,1fr)); }
+    .task-card, .metric-card, .quick-card { display:block; border:1px solid #d7e0e7; border-radius:14px; background:#fff; box-shadow:0 5px 18px rgba(15,47,74,.05); text-decoration:none !important; }
+    .task-card { padding:17px; border-left:5px solid #f59e0b; color:#1f2937 !important; }
+    .task-card.danger { border-left-color:#e11d48; }
+    .task-card.info { border-left-color:#16828a; }
+    .task-card:hover, .quick-card:hover { border-color:#16828a; transform:translateY(-1px); }
+    .task-label { display:block; color:#4b5563; font-size:12px; font-weight:850; text-transform:uppercase; letter-spacing:.04em; }
+    .task-value { display:block; margin:7px 0 4px; font-size:30px; font-weight:900; color:#102f4a; }
+    .task-help { color:#4b5563; font-size:13px; line-height:1.55; }
+    .quick-card { padding:15px; color:#1f2937 !important; font-size:14px; font-weight:800; text-align:center; }
+    .quick-icon { display:flex; align-items:center; justify-content:center; width:38px; height:38px; margin:0 auto 9px; border-radius:11px; background:#e8f3f4; color:#0f6970; font-size:19px; }
+    .metric-card { padding:16px; }
+    .metric-card strong { display:block; color:#4b5563; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+    .metric-card b { display:block; margin:7px 0 4px; font-size:29px; color:#102f4a; }
+    .metric-card small { color:#4b5563; font-size:13px; line-height:1.55; }
+    .status-panel { display:grid; grid-template-columns:1.2fr .8fr; gap:14px; }
+    .panel-card { border:1px solid #d7e0e7; border-radius:14px; padding:18px; background:#fff; color:#1f2937; box-shadow:0 5px 18px rgba(15,47,74,.05); }
+    .panel-card h3 { margin:0 0 14px; color:#173f67; font-size:16px; }
+    .pill-row { display:flex; gap:9px; flex-wrap:wrap; }
+    .status-pill { border-radius:999px; display:inline-flex; gap:6px; padding:7px 11px; font-weight:800; }
+    .status-pill.low { background:#dcfce7; color:#166534; }
+    .status-pill.mid { background:#fef3c7; color:#92400e; }
+    .status-pill.high { background:#ffe4e6; color:#9f1239; }
+    .health-list { display:grid; gap:9px; }
+    .health-row { display:flex; justify-content:space-between; gap:12px; padding-bottom:9px; border-bottom:1px solid #d7e0e7; font-size:13px; }
+    .health-row:last-child { border-bottom:0; padding-bottom:0; }
+    .menu-panel { margin-top:14px; }
+    #content-related { margin-top:0; }
+    @media(max-width:1100px){ .quick-grid{grid-template-columns:repeat(3,1fr)} .metric-grid{grid-template-columns:repeat(2,1fr)} }
+    @media(max-width:800px){ .workspace-hero{align-items:flex-start;flex-direction:column}.workspace-date{display:none}.task-grid,.status-panel{grid-template-columns:1fr}.quick-grid{grid-template-columns:repeat(2,1fr)} }
+    @media(max-width:520px){ .metric-grid,.quick-grid{grid-template-columns:1fr} }
+  </style>
 {% endblock %}
+
+{% block content_title %}{% endblock %}
 
 {% block content %}
 <div id="content-main">
-  <div class="sikap-dashboard" aria-label="Ringkasan layanan SIKAP-KI NTB">
-    <div class="sikap-card">
-      <strong>Chatbot hari ini</strong>
-      <span>{{ dashboard_metrics.chatbot_today }}</span>
-      <small>{{ dashboard_metrics.chatbot_week }} pertanyaan minggu ini</small>
+  <section class="workspace-hero">
+    <div>
+      <h1>Selamat datang, {% firstof user.first_name user.username %}</h1>
+      <p>Gunakan ruang kerja ini untuk meninjau konsultasi kompleks, menjaga basis pengetahuan resmi, dan memantau kualitas layanan SIKAP-KI NTB.</p>
     </div>
-    <div class="sikap-card">
-      <strong>Butuh perhatian</strong>
-      <span>{{ dashboard_metrics.escalated_open }}</span>
-      <small>{{ dashboard_metrics.escalated_total }} total dieskalasi</small>
-    </div>
-    <div class="sikap-card">
-      <strong>Cek merek hari ini</strong>
-      <span>{{ dashboard_metrics.cek_merek_today }}</span>
-      <small>{{ dashboard_metrics.cek_merek_week }} pengecekan minggu ini</small>
-    </div>
-    <div class="sikap-card">
-      <strong>Distribusi risiko</strong>
-      <div class="sikap-risk">
-        <span class="sikap-pill risk-rendah">Rendah {{ dashboard_metrics.risk_distribution.rendah }}</span>
-        <span class="sikap-pill risk-sedang">Sedang {{ dashboard_metrics.risk_distribution.sedang }}</span>
-        <span class="sikap-pill risk-tinggi">Tinggi {{ dashboard_metrics.risk_distribution.tinggi }}</span>
+    <div class="workspace-date">{% now "l, d F Y" %}</div>
+  </section>
+
+  <div class="section-heading"><div><h2>Tugas yang perlu ditangani</h2><p>Prioritas operasional petugas hari ini.</p></div></div>
+  <section class="task-grid" aria-label="Tugas prioritas">
+    <a class="task-card" href="{% url 'admin:chatbot_percakapanchatbot_changelist' %}?status_tindak_lanjut__exact=menunggu">
+      <span class="task-label">Konsultasi menunggu</span><span class="task-value">{{ dashboard_metrics.escalated_waiting }}</span><span class="task-help">Buka antrean dan tugaskan kepada petugas.</span>
+    </a>
+    <a class="task-card info" href="{% url 'admin:chatbot_percakapanchatbot_changelist' %}?status_tindak_lanjut__exact=diproses">
+      <span class="task-label">Lewat SLA / diproses</span><span class="task-value">{{ dashboard_metrics.escalated_overdue }} / {{ dashboard_metrics.escalated_processing }}</span><span class="task-help">Prioritaskan konsultasi yang melewati tenggat layanan.</span>
+    </a>
+    <a class="task-card {% if dashboard_metrics.documents_failed %}danger{% else %}info{% endif %}" href="{% url 'admin:knowledge_dokumenresmi_changelist' %}?status_indexing__exact=gagal">
+      <span class="task-label">Dokumen gagal diproses</span><span class="task-value">{{ dashboard_metrics.documents_failed }}</span><span class="task-help">Periksa pesan kesalahan dan antrekan ulang.</span>
+    </a>
+    <a class="task-card {% if dashboard_metrics.faq_drafts %}danger{% else %}info{% endif %}" href="{% url 'admin:knowledge_faq_changelist' %}?status_validasi__exact=draf">
+      <span class="task-label">FAQ menunggu verifikasi</span><span class="task-value">{{ dashboard_metrics.faq_drafts }}</span><span class="task-help">Tinjau perubahan sumber DJKI sebelum digunakan chatbot.</span>
+    </a>
+  </section>
+
+  <div class="section-heading"><div><h2>Aksi cepat</h2><p>Jalan pintas untuk pekerjaan yang paling sering dilakukan.</p></div></div>
+  <section class="quick-grid">
+    <a class="quick-card" href="{% url 'admin:knowledge_dokumenresmi_add' %}"><span class="quick-icon">+</span>Unggah dokumen resmi</a>
+    <a class="quick-card" href="{% url 'admin:knowledge_faq_add' %}"><span class="quick-icon">FAQ</span>Tambah FAQ</a>
+    <a class="quick-card" href="{% url 'admin:chatbot_percakapanchatbot_changelist' %}"><span class="quick-icon">KI</span>Riwayat konsultasi</a>
+    <a class="quick-card" href="{% url 'admin:trademark_cekmereklog_changelist' %}"><span class="quick-icon">M</span>Riwayat penelusuran</a>
+    <a class="quick-card" href="{% url 'admin:core_monitoringsnapshot_add' %}"><span class="quick-icon">MON</span>Buat bukti monitoring</a>
+    <a class="quick-card" href="{% url 'admin:core_ujicobapengguna_changelist' %}"><span class="quick-icon">UX</span>Hasil uji pengguna</a>
+    <a class="quick-card" href="{{ sikap_frontend_url }}" target="_blank" rel="noreferrer"><span class="quick-icon">WEB</span>Lihat portal publik</a>
+  </section>
+
+  <div class="section-heading"><div><h2>Ringkasan layanan</h2><p>Angka operasional tanpa menampilkan data pribadi pengguna.</p></div></div>
+  <section class="metric-grid">
+    <div class="metric-card"><strong>Chatbot hari ini</strong><b>{{ dashboard_metrics.chatbot_today }}</b><small>{{ dashboard_metrics.chatbot_week }} interaksi minggu ini</small></div>
+    <div class="metric-card"><strong>Penelusuran hari ini</strong><b>{{ dashboard_metrics.cek_merek_today }}</b><small>{{ dashboard_metrics.cek_merek_week }} penelusuran minggu ini</small></div>
+    <div class="metric-card"><strong>Dokumen terverifikasi</strong><b>{{ dashboard_metrics.documents_verified }}</b><small>{{ dashboard_metrics.documents_queued }} mengantre atau diproses</small></div>
+    <div class="metric-card"><strong>FAQ terverifikasi</strong><b>{{ dashboard_metrics.faq_verified }}</b><small>{{ dashboard_metrics.faq_drafts }} menunggu verifikasi petugas</small></div>
+    <div class="metric-card"><strong>Eskalasi selesai</strong><b>{{ dashboard_metrics.escalated_resolved }}</b><small>{{ dashboard_metrics.escalated_total }} total konsultasi kompleks</small></div>
+    <div class="metric-card"><strong>Respon uji pengguna</strong><b>{{ dashboard_metrics.user_tests }}</b><small>Bukti evaluasi pengalaman pengguna</small></div>
+    <div class="metric-card"><strong>Snapshot monitoring</strong><b>{{ dashboard_metrics.snapshots }}</b><small>Bukti monitoring yang dibekukan per periode</small></div>
+  </section>
+
+  <div class="section-heading"><div><h2>Kualitas dan kesehatan sistem</h2><p>Indikator untuk monitoring dan evaluasi layanan.</p></div></div>
+  <section class="status-panel">
+    <div class="panel-card">
+      <h3>Indikator hasil penelusuran merek</h3>
+      <div class="pill-row">
+        <span class="status-pill low">Rendah {{ dashboard_metrics.risk_distribution.rendah }}</span>
+        <span class="status-pill mid">Perlu ditinjau {{ dashboard_metrics.risk_distribution.sedang }}</span>
+        <span class="status-pill high">Perlu kehati-hatian {{ dashboard_metrics.risk_distribution.tinggi }}</span>
       </div>
     </div>
-  </div>
+    <div class="panel-card">
+      <h3>Basis pengetahuan</h3>
+      <div class="health-list">
+        <div class="health-row"><span>Terverifikasi</span><strong>{{ dashboard_metrics.documents_verified }}</strong></div>
+        <div class="health-row"><span>Mengantre/diproses</span><strong>{{ dashboard_metrics.documents_queued }}</strong></div>
+        <div class="health-row"><span>Gagal</span><strong>{{ dashboard_metrics.documents_failed }}</strong></div>
+      </div>
+    </div>
+  </section>
 
-  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+  <div class="section-heading"><div><h2>Menu pengelolaan</h2><p>Seluruh data dan konfigurasi sesuai kewenangan akun Anda.</p></div></div>
+  <div class="menu-panel">{% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}</div>
 </div>
 {% endblock %}
 
 {% block sidebar %}
 <div id="content-related">
   <div class="module" id="recent-actions-module">
-    <h2>{% translate 'Recent actions' %}</h2>
-    <h3>{% translate 'My actions' %}</h3>
-    {% load log %}
-    {% get_admin_log 10 as admin_log for_user user %}
-    {% if not admin_log %}
-      <p>{% translate 'None available' %}</p>
-    {% else %}
+    <h2>Aktivitas terakhir saya</h2>
+    {% get_admin_log 8 as admin_log for_user user %}
+    {% if not admin_log %}<p>Belum ada aktivitas.</p>{% else %}
       <ul class="actionlist">
       {% for entry in admin_log %}
         <li class="{% if entry.is_addition %}addlink{% elif entry.is_change %}changelink{% elif entry.is_deletion %}deletelink{% endif %}">
-          {% if entry.is_deletion or not entry.get_admin_url %}
-            {{ entry.object_repr }}
-          {% else %}
-            <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
-          {% endif %}
-          <br>
-          {% if entry.content_type %}
-            <span class="mini quiet">{% filter capfirst %}{{ entry.content_type.name }}{% endfilter %}</span>
-          {% else %}
-            <span class="mini quiet">{% translate 'Unknown content' %}</span>
-          {% endif %}
+          {% if entry.is_deletion or not entry.get_admin_url %}{{ entry.object_repr }}{% else %}<a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>{% endif %}<br>
+          {% if entry.content_type %}<span class="mini quiet">{% filter capfirst %}{{ entry.content_type.name }}{% endfilter %}</span>{% endif %}
         </li>
       {% endfor %}
       </ul>
