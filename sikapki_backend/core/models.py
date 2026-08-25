@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 import uuid
 
 
@@ -50,7 +51,7 @@ class UjiCobaPengguna(models.Model):
     class Layanan(models.TextChoices):
         KESELURUHAN = 'keseluruhan', 'Keseluruhan portal'
         CHATBOT = 'chatbot', 'Chatbot Helpdesk KI'
-        MEREK = 'cek_merek', 'Penelusuran awal merek'
+        MEREK = 'cek_merek', 'Asisten klasifikasi awal merek'
         CHECKLIST = 'checklist', 'Checklist dokumen'
         INFORMASI = 'informasi', 'Pusat informasi'
 
@@ -100,3 +101,186 @@ class MonitoringSnapshot(models.Model):
 
     def __str__(self):
         return f'Monitoring {self.periode_mulai:%d/%m/%Y} - {self.periode_selesai:%d/%m/%Y}'
+
+
+class BackgroundJob(models.Model):
+    """Antrean pekerjaan berat yang diproses worker di luar request web."""
+
+    class Kind(models.TextChoices):
+        CHATBOT_AI = 'chatbot_ai', 'Jawaban Chatbot AI'
+        CLASSIFICATION_AI = 'classification_ai', 'Klasifikasi Kelas AI'
+        TRADEMARK_AI = 'trademark_ai', 'Penelusuran Merek AI'
+        DOCUMENT_INDEX = 'document_index', 'Indexing Dokumen'
+        FAQ_INDEX = 'faq_index', 'Indexing FAQ'
+        BRM_ENRICH = 'brm_enrich', 'Pengayaan BRM DJKI'
+
+    class Status(models.TextChoices):
+        QUEUED = 'queued', 'Menunggu'
+        RUNNING = 'running', 'Sedang diproses'
+        SUCCEEDED = 'succeeded', 'Berhasil'
+        FAILED = 'failed', 'Gagal'
+
+    job_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    kind = models.CharField(max_length=32, choices=Kind.choices, db_index=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.QUEUED, db_index=True)
+    payload = models.JSONField(default=dict)
+    result = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=3)
+    available_at = models.DateTimeField(default=timezone.now, db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='background_jobs_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['status', 'available_at']),
+            models.Index(fields=['kind', 'status']),
+        ]
+
+    def __str__(self):
+        return f'{self.get_kind_display()} — {self.get_status_display()} ({self.job_id})'
+
+
+class AdminAuditLog(models.Model):
+    """Jejak perubahan data yang dilakukan melalui Django Admin."""
+
+    class Action(models.TextChoices):
+        CREATE = 'create', 'Tambah'
+        UPDATE = 'update', 'Ubah'
+        DELETE = 'delete', 'Hapus'
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='admin_audit_logs',
+    )
+    action = models.CharField(max_length=12, choices=Action.choices)
+    model_label = models.CharField(max_length=160, db_index=True)
+    object_id = models.CharField(max_length=128, blank=True, db_index=True)
+    object_repr = models.CharField(max_length=500)
+    changed_fields = models.JSONField(default=list, blank=True)
+    before_data = models.JSONField(default=dict, blank=True)
+    after_data = models.JSONField(default=dict, blank=True)
+    ip_hash = models.CharField(max_length=64, blank=True)
+    user_agent = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Audit Log Admin'
+        verbose_name_plural = 'Audit Log Admin'
+
+    def __str__(self):
+        return f'{self.get_action_display()} {self.model_label} #{self.object_id}'
+
+
+class SlaNotification(models.Model):
+    """Notifikasi internal untuk konsultasi yang melewati target SLA."""
+
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='sla_notifications',
+    )
+    consultation_id = models.UUIDField(db_index=True)
+    message = models.CharField(max_length=500)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['read_at', '-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['recipient', 'consultation_id'],
+                name='unique_sla_notification_recipient_consultation',
+            ),
+        ]
+
+    def __str__(self):
+        return f'Notifikasi SLA {self.consultation_id} untuk {self.recipient}'
+
+
+class _BackgroundJobDuplicate(models.Model):
+    """Antrean pekerjaan berat yang diproses worker di luar request web."""
+
+    class Kind(models.TextChoices):
+        CHATBOT_AI = 'chatbot_ai', 'Jawaban Chatbot AI'
+        CLASSIFICATION_AI = 'classification_ai', 'Klasifikasi Kelas AI'
+        TRADEMARK_AI = 'trademark_ai', 'Penelusuran Merek AI'
+        DOCUMENT_INDEX = 'document_index', 'Indexing Dokumen'
+        FAQ_INDEX = 'faq_index', 'Indexing FAQ'
+        BRM_ENRICH = 'brm_enrich', 'Pengayaan BRM DJKI'
+
+    class Status(models.TextChoices):
+        QUEUED = 'queued', 'Menunggu'
+        RUNNING = 'running', 'Sedang diproses'
+        SUCCEEDED = 'succeeded', 'Berhasil'
+        FAILED = 'failed', 'Gagal'
+
+    job_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    kind = models.CharField(max_length=32, choices=Kind.choices, db_index=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.QUEUED, db_index=True)
+    payload = models.JSONField(default=dict)
+    result = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=3)
+    available_at = models.DateTimeField(default=timezone.now, db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='background_jobs_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['status', 'available_at']),
+            models.Index(fields=['kind', 'status']),
+        ]
+
+    def __str__(self):
+        return f'{self.get_kind_display()} — {self.get_status_display()} ({self.job_id})'
+
+
+class _AdminAuditLogDuplicate(models.Model):
+    """Jejak perubahan data yang dilakukan melalui Django Admin."""
+
+    class Action(models.TextChoices):
+        CREATE = 'create', 'Tambah'
+        UPDATE = 'update', 'Ubah'
+        DELETE = 'delete', 'Hapus'
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='admin_audit_logs',
+    )
+    action = models.CharField(max_length=12, choices=Action.choices)
+    model_label = models.CharField(max_length=160, db_index=True)
+    object_id = models.CharField(max_length=128, blank=True, db_index=True)
+    object_repr = models.CharField(max_length=500)
+    changed_fields = models.JSONField(default=list, blank=True)
+    before_data = models.JSONField(default=dict, blank=True)
+    after_data = models.JSONField(default=dict, blank=True)
+    ip_hash = models.CharField(max_length=64, blank=True)
+    user_agent = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        abstract = True
+        ordering = ['-created_at']
+        verbose_name = 'Audit Log Admin'
+        verbose_name_plural = 'Audit Log Admin'
+
+    def __str__(self):
+        return f'{self.get_action_display()} {self.model_label} #{self.object_id}'

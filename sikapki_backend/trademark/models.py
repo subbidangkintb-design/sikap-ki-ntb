@@ -61,6 +61,13 @@ class MirrorPDKI(models.Model):
     )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DIAJUKAN)
     pemilik = models.CharField(max_length=255)
+    uraian_barang_jasa = models.TextField(
+        blank=True,
+        help_text=(
+            'Uraian barang/jasa untuk kelas ini sebagaimana tercantum pada sumber resmi. '
+            'Jangan diisi dengan ringkasan buatan AI.'
+        ),
+    )
     tanggal_daftar = models.DateField(null=True, blank=True)
     tanggal_penerimaan = models.DateField(null=True, blank=True)
     tanggal_publikasi = models.DateField(null=True, blank=True)
@@ -125,6 +132,38 @@ class SinkronisasiPDKILog(models.Model):
 
     def __str__(self):
         return f'{self.get_status_display()} — {self.judul_sumber or self.sumber_url}'
+
+
+class KlasifikasiMerekLog(models.Model):
+    """Log anonim penggunaan asisten klasifikasi awal merek."""
+
+    nama_merek_diajukan = models.CharField(max_length=255)
+    deskripsi_produk = models.TextField()
+    rekomendasi_kelas = models.JSONField(
+        default=list,
+        help_text='Kandidat kelas dan istilah barang/jasa resmi yang direkomendasikan.',
+    )
+    perlu_klarifikasi = models.BooleanField(default=False)
+    logo_disertakan = models.BooleanField(
+        default=False,
+        help_text='Hanya mencatat keberadaan logo; berkas dan isi logo tidak disimpan atau dinilai.',
+    )
+    dibuat_pada = models.DateTimeField(auto_now_add=True)
+    ip_hash = models.CharField(
+        max_length=64, blank=True, editable=False,
+        help_text='Sidik anonim untuk mitigasi penyalahgunaan; alamat IP asli tidak disimpan.',
+    )
+
+    class Meta:
+        verbose_name = 'Log Asisten Klasifikasi Merek'
+        verbose_name_plural = 'Log Asisten Klasifikasi Merek'
+        ordering = ['-dibuat_pada']
+
+    def __str__(self):
+        classes = ', '.join(
+            str(item.get('kelas', '')) for item in self.rekomendasi_kelas if item.get('kelas')
+        )
+        return f'{self.nama_merek_diajukan} — kelas {classes or "belum teridentifikasi"}'
 
 
 class CekMerekLog(models.Model):

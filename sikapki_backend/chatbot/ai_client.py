@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import requests
 from django.conf import settings
 
-from core.http_client import configure_ai_network
+from core.http_client import configure_ai_network, request_with_retry
 
 
 class AIProviderError(Exception):
@@ -26,6 +26,21 @@ def generate_answer(prompt: str, config: AIConfig | None = None) -> str:
     )
     provider = config.provider.lower().strip()
 
+    try:
+        return _generate_for_provider(prompt, config, provider)
+    except AIProviderError:
+        fallback = getattr(settings, 'AI_FALLBACK_PROVIDER', '').lower().strip()
+        if not fallback or fallback == provider:
+            raise
+        fallback_model = getattr(settings, 'AI_FALLBACK_MODEL', '') or config.model
+        return _generate_for_provider(
+            prompt,
+            AIConfig(provider=fallback, model=fallback_model, timeout_seconds=config.timeout_seconds),
+            fallback,
+        )
+
+
+def _generate_for_provider(prompt: str, config: AIConfig, provider: str) -> str:
     if provider == 'ollama':
         return _generate_ollama(prompt, config)
     if provider == 'gemini':
@@ -142,7 +157,11 @@ def _post_json(
         request_headers.update(headers)
 
     try:
-        response = requests.post(url, json=payload, headers=request_headers, timeout=timeout)
+        response = request_with_retry(
+            lambda: requests.post(url, json=payload, headers=request_headers, timeout=timeout),
+            attempts=getattr(settings, 'AI_REQUEST_RETRIES', 2) + 1,
+            backoff=getattr(settings, 'AI_RETRY_BACKOFF_SECONDS', 1),
+        )
         response.raise_for_status()
         return response.json()
     except requests.exceptions.ConnectionError as exc:

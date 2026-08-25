@@ -5,12 +5,6 @@ import PageHeader from '../components/PageHeader.jsx'
 import StatusNotice from '../components/StatusNotice.jsx'
 import { getStatistikLayanan } from '../lib/api.js'
 
-const riskMeta = {
-  rendah: { label: 'Indikasi rendah', color: 'bg-emerald-500' },
-  sedang: { label: 'Perlu ditinjau', color: 'bg-amber-400' },
-  tinggi: { label: 'Perlu kehati-hatian', color: 'bg-rose-500' },
-}
-
 export default function DashboardPage() {
   const [stats, setStats] = useState(null)
   const [error, setError] = useState('')
@@ -28,9 +22,6 @@ export default function DashboardPage() {
     return () => { mounted = false }
   }, [period])
 
-  const riskTotal = useMemo(() => stats
-    ? Object.values(stats.risiko || {}).reduce((sum, value) => sum + value, 0)
-    : 0, [stats])
   const trendMax = useMemo(() => stats
     ? Math.max(1, ...(stats.tren_periode || stats.tren_7_hari || []).map((item) => item.chatbot + item.cek_merek))
     : 1, [stats])
@@ -59,7 +50,7 @@ export default function DashboardPage() {
         {stats ? (
           <div className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard icon={SearchCheck} label="Pengecekan merek" value={stats.cek_merek_total} note="Pengecekan awal di portal" />
+              <StatCard icon={SearchCheck} label="Analisis klasifikasi" value={stats.cek_merek_total} note="Penggunaan asisten klasifikasi merek" />
               <StatCard icon={BotMessageSquare} label="Pertanyaan KI" value={stats.chatbot_total} note="Interaksi pada Chatbot Helpdesk KI" />
               <StatCard icon={BookOpenCheck} label="Informasi tersedia" value={stats.faq_total} note="FAQ yang dapat ditelusuri" />
               <StatCard icon={FileBadge2} label="Sumber terverifikasi" value={stats.dokumen_terverifikasi_total} note="Dokumen aktif untuk jawaban" />
@@ -69,28 +60,22 @@ export default function DashboardPage() {
               <article className="rounded-2xl border border-gov-line bg-white p-6 shadow-ministry">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm font-extrabold uppercase tracking-wider text-gov-blue">Profil hasil cek merek</p>
-                    <h2 className="mt-2 text-2xl font-black text-gov-navy">Sebaran indikator kehati-hatian</h2>
+                    <p className="text-sm font-extrabold uppercase tracking-wider text-gov-blue">Asisten klasifikasi merek</p>
+                    <h2 className="mt-2 text-2xl font-black text-gov-navy">Kebutuhan klasifikasi pengguna</h2>
                   </div>
                   <BarChart3 className="text-gov-gold" size={30} />
                 </div>
-                <div className="mt-8 space-y-5">
-                  {Object.entries(riskMeta).map(([key, meta]) => {
-                    const value = stats.risiko?.[key] || 0
-                    const percentage = riskTotal ? Math.round((value / riskTotal) * 100) : 0
-                    return (
-                      <div key={key}>
-                        <div className="mb-2 flex items-center justify-between text-sm">
-                          <span className="font-bold text-slate-700">{meta.label}</span>
-                          <span className="font-black text-gov-navy">{value} <span className="font-medium text-slate-500">({percentage}%)</span></span>
-                        </div>
-                        <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                          <div className={`h-full rounded-full ${meta.color}`} style={{ width: `${percentage}%` }} />
-                        </div>
-                      </div>
-                    )
-                  })}
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl bg-blue-50 p-5">
+                    <p className="text-4xl font-black text-gov-blue">{stats.klasifikasi_merek_total || 0}</p>
+                    <p className="mt-2 text-sm font-bold text-blue-950">Analisis dengan alur klasifikasi baru</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-50 p-5">
+                    <p className="text-4xl font-black text-amber-800">{stats.klasifikasi_perlu_klarifikasi_total || 0}</p>
+                    <p className="mt-2 text-sm font-bold text-amber-950">Deskripsi memerlukan informasi tambahan</p>
+                  </div>
                 </div>
+                <p className="mt-5 text-sm leading-6 text-slate-600">Sistem membantu memilih kelas dan istilah barang/jasa. Nama dan logo tidak dinilai kemiripannya.</p>
               </article>
 
               <article className="rounded-2xl bg-gov-royal p-6 text-white shadow-ministry">
@@ -178,7 +163,7 @@ export default function DashboardPage() {
                 })}
                 </div>
               </div>
-              <div className="mt-4 flex flex-wrap gap-4 text-xs font-bold text-slate-600"><span><i className="mr-2 inline-block h-3 w-3 rounded bg-gov-blue" />Chatbot</span><span><i className="mr-2 inline-block h-3 w-3 rounded bg-gov-gold" />Penelusuran merek</span></div>
+              <div className="mt-4 flex flex-wrap gap-4 text-xs font-bold text-slate-600"><span><i className="mr-2 inline-block h-3 w-3 rounded bg-gov-blue" />Chatbot</span><span><i className="mr-2 inline-block h-3 w-3 rounded bg-gov-gold" />Klasifikasi merek</span></div>
             </article>
 
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">
@@ -201,12 +186,12 @@ export default function DashboardPage() {
 function exportMonitoringCsv(stats) {
   if (!stats) return
   const rows = [
-    ['Tanggal', 'Chatbot', 'Penelusuran merek'],
+    ['Tanggal', 'Chatbot', 'Klasifikasi merek'],
     ...(stats.tren_periode || []).map((item) => [item.tanggal, item.chatbot, item.cek_merek]),
     [],
     ['Indikator', 'Nilai'],
     ['Total chatbot', stats.chatbot_total],
-    ['Total penelusuran merek', stats.cek_merek_total],
+    ['Total analisis klasifikasi merek', stats.cek_merek_total],
     ['Jawaban dinilai membantu', stats.feedback?.tingkat_membantu || 0],
     ['Kepatuhan SLA', stats.eskalasi?.kepatuhan_sla_persen || 0],
     ['Rata-rata tindak lanjut (jam)', stats.eskalasi?.rata_rata_jam_tindak_lanjut || 0],

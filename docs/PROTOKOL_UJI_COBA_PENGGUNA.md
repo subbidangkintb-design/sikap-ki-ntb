@@ -13,7 +13,8 @@ Kriteria keberhasilan pilot:
 
 ## Skenario tugas
 
-1. Cari kelas Nice untuk satu produk/jasa dan buka hasil penelusuran awal merek.
+1. Masukkan nama, logo opsional, dan deskripsi usaha; tinjau beberapa
+   rekomendasi kelas/istilah resmi; lalu buka tautan verifikasi SKM dan PDKI.
 2. Ajukan pertanyaan layanan KI melalui Chatbot Helpdesk.
 3. Lengkapi checklist dokumen untuk satu jenis KI.
 4. Temukan satu informasi resmi dan tautan sumbernya.

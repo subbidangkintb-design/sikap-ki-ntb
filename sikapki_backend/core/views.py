@@ -12,12 +12,16 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from .models import MonitoringSnapshot, UjiCobaPengguna
+from .models import BackgroundJob, MonitoringSnapshot, UjiCobaPengguna
 from .serializers import UjiCobaPenggunaSerializer, UserSerializer
 
 from chatbot.models import PercakapanChatbot
 from knowledge.models import DokumenResmi, FAQ, SinkronisasiFAQLog
-from trademark.models import CekMerekLog, MirrorPDKI, SinkronisasiPDKILog
+from trademark.models import (
+    KlasifikasiMerekLog,
+    MirrorPDKI,
+    SinkronisasiPDKILog,
+)
 
 
 class MeView(APIView):
@@ -32,6 +36,29 @@ class MeView(APIView):
         return Response(serializer.data)
 
 
+class BackgroundJobStatusView(APIView):
+    """Status job publik berbasis UUID acak; hasil hanya dapat dibaca dengan token job."""
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'chatbot'
+
+    def get(self, request, job_id):
+        try:
+            job = BackgroundJob.objects.get(job_id=job_id)
+        except BackgroundJob.DoesNotExist:
+            return Response({'detail': 'Background job tidak ditemukan.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({
+            'job_id': job.job_id,
+            'kind': job.kind,
+            'status': job.status,
+            'attempts': job.attempts,
+            'result': job.result if job.status == BackgroundJob.Status.SUCCEEDED else None,
+            'error': job.error_message if job.status == BackgroundJob.Status.FAILED else '',
+            'created_at': job.created_at,
+            'finished_at': job.finished_at,
+        })
+
+
 class StatistikLayananView(APIView):
     """Public aggregate statistics; never exposes individual service logs."""
     permission_classes = [permissions.AllowAny]
@@ -43,11 +70,6 @@ class StatistikLayananView(APIView):
             period_days = 7
         if period_days not in {7, 30, 90}:
             period_days = 7
-        risk_rows = CekMerekLog.objects.values('skor_risiko').annotate(total=Count('id'))
-        risk_distribution = {
-            row['skor_risiko']: row['total']
-            for row in risk_rows
-        }
         chatbot_total = PercakapanChatbot.objects.count()
         escalated_total = PercakapanChatbot.objects.filter(dieskalasi=True).count()
         escalation_status = {
@@ -67,7 +89,7 @@ class StatistikLayananView(APIView):
         }
         trademark_daily = {
             row['day']: row['total']
-            for row in CekMerekLog.objects.filter(dibuat_pada__date__gte=first_day)
+            for row in KlasifikasiMerekLog.objects.filter(dibuat_pada__date__gte=first_day)
             .annotate(day=TruncDate('dibuat_pada')).values('day').annotate(total=Count('id'))
         }
         activity_trend = [
@@ -113,7 +135,11 @@ class StatistikLayananView(APIView):
         latest_faq_sync = SinkronisasiFAQLog.objects.first()
 
         return Response({
-            'cek_merek_total': CekMerekLog.objects.count(),
+            'cek_merek_total': KlasifikasiMerekLog.objects.count(),
+            'klasifikasi_merek_total': KlasifikasiMerekLog.objects.count(),
+            'klasifikasi_perlu_klarifikasi_total': KlasifikasiMerekLog.objects.filter(
+                perlu_klarifikasi=True,
+            ).count(),
             'chatbot_total': chatbot_total,
             'faq_total': FAQ.objects.filter(
                 status_validasi=FAQ.StatusValidasi.TERVERIFIKASI,
@@ -195,11 +221,6 @@ class StatistikLayananView(APIView):
                 'periode_selesai': latest_snapshot.periode_selesai,
                 'dibuat_pada': latest_snapshot.dibuat_pada,
             } if latest_snapshot else None),
-            'risiko': {
-                'rendah': risk_distribution.get(CekMerekLog.SkorRisiko.RENDAH, 0),
-                'sedang': risk_distribution.get(CekMerekLog.SkorRisiko.SEDANG, 0),
-                'tinggi': risk_distribution.get(CekMerekLog.SkorRisiko.TINGGI, 0),
-            },
             'diperbarui_pada': timezone.now(),
             'cakupan': (
                 'Aktivitas agregat pada portal SIKAP-KI NTB dan data pembanding dari '

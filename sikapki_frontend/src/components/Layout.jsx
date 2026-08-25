@@ -13,7 +13,7 @@ import {
 
 const navItems = [
   { to: '/', label: 'Beranda', icon: Home, end: true },
-  { to: '/cek-merek', label: 'Penelusuran Merek', icon: SearchCheck },
+  { to: '/cek-merek', label: 'Klasifikasi Merek', icon: SearchCheck },
   { to: '/chatbot', label: 'Chatbot Helpdesk', icon: BotMessageSquare },
   { to: '/checklist', label: 'Checklist', icon: ClipboardCheck },
   { to: '/informasi', label: 'Pusat Informasi', icon: Library },
@@ -21,7 +21,7 @@ const navItems = [
 ]
 
 const footerServices = [
-  { to: '/cek-merek', label: 'Asisten penelusuran awal merek' },
+  { to: '/cek-merek', label: 'Asisten klasifikasi awal merek' },
   { to: '/chatbot', label: 'Chatbot Helpdesk KI' },
   { to: '/checklist', label: 'Checklist dokumen' },
   { to: '/informasi', label: 'Pusat informasi' },

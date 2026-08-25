@@ -5,7 +5,7 @@ import logo from '../assets/sikap-ki-ntb-logo-2026.png'
 const services = [
   { to: '/', title: 'Prototipe SIKAP-KI NTB', text: 'Sarana pendukung model tata kelola konsultasi awal KI yang terintegrasi dan terstandar.', icon: ShieldCheck, accent: 'bg-indigo-50 text-indigo-700' },
   { to: '/chatbot', title: 'Chatbot Helpdesk KI', text: 'Jawaban awal berdasarkan dokumen terverifikasi, disertai sumber dan mekanisme eskalasi.', icon: BotMessageSquare, accent: 'bg-emerald-50 text-emerald-700' },
-  { to: '/cek-merek', title: 'Asisten Penelusuran Awal Merek', text: 'Lihat kelas Nice dan indikasi kemiripan pada data publikasi resmi DJKI yang tersedia.', icon: SearchCheck, accent: 'bg-blue-50 text-gov-blue' },
+  { to: '/cek-merek', title: 'Asisten Penelusuran Awal Merek', text: 'Dapatkan beberapa rekomendasi kelas dan istilah barang/jasa berdasarkan Nice Classification, lalu verifikasi melalui SKM dan PDKI.', icon: SearchCheck, accent: 'bg-blue-50 text-gov-blue' },
   { to: '/checklist', title: 'Checklist dokumen', text: 'Siapkan persyaratan awal secara interaktif sebelum menuju sistem permohonan resmi.', icon: ClipboardCheck, accent: 'bg-amber-50 text-amber-700' },
   { title: 'Riwayat konsultasi', text: 'Interaksi dan tindak lanjut petugas tercatat dengan akses terbatas untuk evaluasi layanan.', icon: History, accent: 'bg-violet-50 text-violet-700' },
   { to: '/statistik', title: 'Dashboard statistik layanan', text: 'Data agregat membantu monitoring, evaluasi, dan penyempurnaan kebijakan pelayanan.', icon: LayoutDashboard, accent: 'bg-rose-50 text-rose-700' },
@@ -29,7 +29,7 @@ export default function HomePage() {
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link to="/cek-merek" className="inline-flex min-h-14 items-center justify-center gap-3 rounded-xl bg-gov-royal px-6 font-black text-white shadow-ministry transition hover:-translate-y-0.5 hover:bg-blue-900">
-                <SearchCheck size={21} /> Mulai penelusuran awal
+                <SearchCheck size={21} /> Cari klasifikasi merek
               </Link>
               <Link to="/informasi" className="inline-flex min-h-14 items-center justify-center gap-3 rounded-xl border-2 border-gov-royal bg-white px-6 font-black text-gov-royal transition hover:bg-blue-50">
                 Jelajahi pusat informasi <ArrowRight size={19} />
@@ -86,9 +86,9 @@ export default function HomePage() {
             <p className="text-sm font-extrabold uppercase tracking-wider text-gov-blue">Prinsip pelayanan</p>
             <h2 className="mt-2 text-3xl font-black text-gov-navy">Informasi awal yang aman bagi masyarakat dan institusi</h2>
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <Principle title="Tidak menjanjikan keputusan" text="Indikator kemiripan bukan peluang diterima atau ditolak oleh DJKI." />
+              <Principle title="Tidak menilai kemiripan" text="Nama dan logo tidak dibandingkan atau diberi peluang diterima maupun ditolak." />
               <Principle title="Tidak membuat nama merek" text="Sistem tidak memberikan usulan nama merek alternatif kepada pengguna." />
-              <Principle title="Fokus pada label" text="Saran diarahkan pada aspek label yang perlu ditinjau untuk memperkuat daya pembeda." />
+              <Principle title="Fokus pada klasifikasi" text="Rekomendasi diarahkan pada kelas dan istilah barang atau jasa yang relevan." />
               <Principle title="Eskalasi resmi" text="Pertanyaan yang memerlukan penanganan diarahkan ke Helpdesk KI Kanwil." />
             </div>
           </div>

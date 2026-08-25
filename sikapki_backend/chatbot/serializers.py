@@ -7,6 +7,7 @@ class TanyaChatbotSerializer(serializers.Serializer):
         trim_whitespace=True, allow_blank=False, max_length=1500,
     )
     sesi_id = serializers.UUIDField(required=False)
+    asinkron = serializers.BooleanField(required=False, default=False)
 
 
 class SumberDokumenSerializer(serializers.Serializer):

@@ -4,21 +4,23 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 from rest_framework.test import APIClient
 
-from .models import CekMerekLog, MirrorPDKI, NiceClassificationTerm
+from .models import CekMerekLog, KlasifikasiMerekLog, MirrorPDKI, NiceClassificationTerm
 from .pdki_sync import (
     BulletinData,
     BulletinRecord,
     extract_bulletin_labels,
+    extract_bulletin_details,
     parse_bulletin,
     sync_bulletin,
 )
 from .services import (
     build_advice_prompt,
+    calculate_goods_services_similarity,
     calculate_similarity_percentage,
     calculate_similarity_score,
     calculate_visual_similarity,
@@ -56,14 +58,16 @@ class TrademarkSimilarityTests(TestCase):
 
         self.assertGreaterEqual(score, 90)
 
-    def test_find_similar_trademarks_uses_only_selected_classes(self):
+    def test_find_similar_trademarks_includes_strong_cross_class_matches(self):
         results = find_similar_trademarks('Kopi Kita', ['30'], threshold=70)
         names = [item['nama'] for item in results]
 
         self.assertIn('KopiKita', names)
-        self.assertNotIn('Kopi Kita Asli', names)
+        self.assertIn('Kopi Kita Asli', names)
         self.assertNotIn('Sasak Lombok', names)
         self.assertEqual(results[0]['nama'], 'Kopi Kita')
+        cross_class = next(item for item in results if item['nama'] == 'Kopi Kita Asli')
+        self.assertFalse(cross_class['kelas_sesuai_rekomendasi'])
 
     def test_short_brand_does_not_match_unrelated_substrings(self):
         self.assertLess(calculate_similarity_score('BENSU', '64 BEANS THE HOME OF CHOFFY'), 72)
@@ -110,6 +114,26 @@ class TrademarkSimilarityTests(TestCase):
         self.assertEqual(
             calculate_similarity_percentage(results),
             results[0]['skor_kemiripan'],
+        )
+
+    def test_goods_services_are_scored_separately_from_brand_name(self):
+        record = MirrorPDKI.objects.get(nama_merek='Kopi Kita')
+        record.nomor_permohonan = 'DID2026000001'
+        record.uraian_barang_jasa = 'kopi bubuk; kopi sangrai; minuman berbahan dasar kopi'
+        record.save(update_fields=['nomor_permohonan', 'uraian_barang_jasa'])
+
+        results = find_similar_trademarks(
+            'Kopi Kita', ['30'], goods_services_description='produk kopi bubuk kemasan',
+        )
+        matched = next(item for item in results if item['nama'] == 'Kopi Kita')
+
+        self.assertEqual(matched['nomor_permohonan'], 'DID2026000001')
+        self.assertEqual(matched['uraian_barang_jasa'], record.uraian_barang_jasa)
+        self.assertGreaterEqual(matched['skor_kesesuaian_barang_jasa'], 60)
+        self.assertIn(matched['hubungan_barang_jasa'], {'Sangat terkait', 'Sebagian terkait'})
+        self.assertGreater(
+            calculate_goods_services_similarity('kopi bubuk', 'kopi bubuk dan kopi sangrai'),
+            calculate_goods_services_similarity('kopi bubuk', 'jasa perbaikan kendaraan'),
         )
 
     def test_advice_prompt_forbids_brand_name_suggestions(self):
@@ -165,56 +189,63 @@ class TrademarkSimilarityTests(TestCase):
             validate_logo_upload(upload)
 
 
-class TrademarkLogoApiTests(TestCase):
+class TrademarkClassificationApiTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        MirrorPDKI.objects.create(
-            nama_merek='Kopi Kita', kelas_nice='30', status=MirrorPDKI.Status.TERDAFTAR,
-            pemilik='Pemilik Referensi', visual_embedding=[1.0, 0.0],
-        )
+        self.classification = {
+            'kelas': ['30'],
+            'perlu_klarifikasi': False,
+            'pertanyaan_klarifikasi': '',
+            'sumber_klasifikasi': 'WIPO Nice Classification NCL 13-2026',
+            'opsi_kelas': [
+                {
+                    'kelas': '30',
+                    'keyakinan': 0.96,
+                    'alasan': 'Cocok dengan istilah resmi WIPO: coffee.',
+                    'deskripsi_kelas': 'Kopi, teh, kakao dan penggantinya.',
+                    'istilah_resmi': [{
+                        'istilah': 'coffee',
+                        'basic_number': '300026',
+                        'skor': 96,
+                        'frasa_pencarian': 'coffee',
+                        'sumber_url': 'https://nclpub.wipo.int/',
+                    }],
+                    'sumber': 'WIPO Nice Classification NCL 13-2026',
+                    'sumber_url': 'https://nclpub.wipo.int/',
+                    'skm_url': 'https://skm.dgip.go.id/index.php/skm/detailkelas/30',
+                },
+            ],
+        }
 
-    @staticmethod
-    def make_logo():
-        stream = io.BytesIO()
-        Image.new('RGB', (128, 128), color=(20, 70, 140)).save(stream, format='PNG')
-        return SimpleUploadedFile('logo-pengguna.png', stream.getvalue(), content_type='image/png')
-
-    @patch('trademark.views.generate_brand_advice', return_value='Hubungi Helpdesk KI Kanwil.')
-    @patch('trademark.views.classify_nice_classes', return_value=['30'])
-    @patch('trademark.views.generate_image_embedding', return_value=[1.0, 0.0])
-    def test_multipart_logo_returns_visual_score_without_storing_file(self, *_mocks):
+    @patch('trademark.views.classify_nice_classes')
+    def test_response_contains_classification_but_no_similarity_assessment(self, classify_mock):
+        classify_mock.return_value = self.classification
         response = self.client.post(
             reverse('trademark-cek-ai'),
             {
                 'nama_merek': 'Kopi Kita',
-                'deskripsi_produk': 'Kopi bubuk',
-                'kelas_nice_dipilih': ['30'],
-                'logo_merek': self.make_logo(),
+                'deskripsi_produk': 'Kopi bubuk dalam kemasan',
             },
-            format='multipart',
+            format='json',
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertTrue(response.data['logo_dianalisis'])
-        self.assertEqual(response.data['referensi_visual_dibandingkan'], 1)
-        self.assertEqual(response.data['persentase_kemiripan_visual'], 100)
-        self.assertEqual(response.data['cakupan_data']['total_pembanding_kelas'], 1)
-        self.assertEqual(response.data['cakupan_data']['visual_siap_dibandingkan'], 1)
-        self.assertTrue(response.data['metodologi'])
-        self.assertTrue(response.data['merek_mirip'][0]['alasan_kemiripan'])
-        log = CekMerekLog.objects.get(pk=response.data['id'])
-        self.assertNotIn('logo-pengguna.png', str(log.hasil_lengkap))
+        self.assertEqual(response.data['rekomendasi_kelas'][0]['kelas'], '30')
+        self.assertFalse(response.data['logo_dinilai'])
+        self.assertIn('pdki', response.data['tautan_resmi'])
+        self.assertNotIn('merek_mirip', response.data)
+        self.assertNotIn('skor_risiko', response.data)
+        self.assertNotIn('persentase_kemiripan', response.data)
+        log = KlasifikasiMerekLog.objects.get(pk=response.data['id'])
+        self.assertEqual(log.rekomendasi_kelas[0]['kelas'], '30')
 
     @patch('trademark.views.classify_nice_classes')
-    def test_ambiguous_classification_returns_options_without_creating_log(self, classify_mock):
+    def test_ambiguous_classification_returns_options_and_clarification(self, classify_mock):
         classify_mock.return_value = {
+            **self.classification,
             'kelas': [],
             'perlu_klarifikasi': True,
             'pertanyaan_klarifikasi': 'Apakah kopi dijual kemasan atau disajikan di kafe?',
-            'opsi_kelas': [
-                {'kelas': '30', 'keyakinan': 0.76, 'alasan': 'kopi kemasan', 'deskripsi_kelas': 'Kopi.'},
-                {'kelas': '43', 'keyakinan': 0.74, 'alasan': 'layanan kafe', 'deskripsi_kelas': 'Kafe.'},
-            ],
         }
 
         response = self.client.post(
@@ -223,28 +254,83 @@ class TrademarkLogoApiTests(TestCase):
             format='json',
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 201)
         self.assertTrue(response.data['perlu_klarifikasi'])
-        self.assertEqual(len(response.data['opsi_kelas']), 2)
-        self.assertFalse(CekMerekLog.objects.exists())
+        self.assertEqual(len(response.data['rekomendasi_kelas']), 1)
+        self.assertTrue(KlasifikasiMerekLog.objects.get().perlu_klarifikasi)
 
-    @patch('trademark.views.generate_brand_advice', return_value='### Ringkasan hasil\nAman.')
     @patch('trademark.views.classify_nice_classes')
-    def test_user_selected_class_bypasses_ai_classification(self, classify_mock, _advice_mock):
+    def test_uploaded_logo_is_not_assessed_or_stored(self, classify_mock):
+        classify_mock.return_value = self.classification
+        upload = SimpleUploadedFile(
+            'logo-pengguna.png',
+            b'konten tidak dibaca oleh alur klasifikasi',
+            content_type='image/png',
+        )
         response = self.client.post(
             reverse('trademark-cek-ai'),
             {
                 'nama_merek': 'Kopi Kita',
-                'deskripsi_produk': 'Kopi disajikan untuk diminum di tempat.',
-                'kelas_nice_dipilih': ['43'],
+                'deskripsi_produk': 'Kopi bubuk dalam kemasan.',
+                'logo_merek': upload,
             },
-            format='json',
+            format='multipart',
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data['kelas_nice_terdeteksi'], ['43'])
-        self.assertEqual(response.data['sumber_klasifikasi'], 'dipilih_pengguna')
-        classify_mock.assert_not_called()
+        self.assertFalse(response.data['logo_dinilai'])
+        log = KlasifikasiMerekLog.objects.get(pk=response.data['id'])
+        self.assertTrue(log.logo_disertakan)
+        self.assertNotIn('logo-pengguna.png', str(log.rekomendasi_kelas))
+        self.assertFalse(CekMerekLog.objects.exists())
+
+    @override_settings(AI_TRADEMARK_CHECK_ENABLED=False)
+    def test_optional_similarity_feature_is_hidden_when_disabled(self):
+        feature_response = self.client.get(reverse('trademark-fitur'))
+        check_response = self.client.post(
+            reverse('trademark-cek-kemiripan-ai'),
+            {'nama_merek': 'Kopi Kita', 'deskripsi_produk': 'Kopi bubuk kemasan'},
+            format='json',
+        )
+
+        self.assertFalse(feature_response.data['ai_cek_merek_aktif'])
+        self.assertEqual(check_response.status_code, 404)
+
+    @override_settings(AI_TRADEMARK_CHECK_ENABLED=True)
+    @patch('trademark.views.classify_nice_classes')
+    def test_optional_similarity_feature_can_be_enabled(self, classify_mock):
+        classify_mock.return_value = self.classification
+        MirrorPDKI.objects.create(
+            nama_merek='KOPI KITA',
+            nomor_permohonan='DID2026000999',
+            kelas_nice='30',
+            status=MirrorPDKI.Status.TERDAFTAR,
+            pemilik='Pemilik pembanding',
+            uraian_barang_jasa='kopi bubuk; kopi sangrai; minuman berbahan dasar kopi',
+            sumber_data_url='https://pdki-indonesia.dgip.go.id/',
+        )
+
+        feature_response = self.client.get(reverse('trademark-fitur'))
+        check_response = self.client.post(
+            reverse('trademark-cek-kemiripan-ai'),
+            {'nama_merek': 'Kopi Kita', 'deskripsi_produk': 'Kopi bubuk kemasan'},
+            format='json',
+        )
+
+        self.assertTrue(feature_response.data['ai_cek_merek_aktif'])
+        self.assertEqual(check_response.status_code, 201)
+        self.assertEqual(check_response.data['kelas_nice_dianalisis'], ['30'])
+        self.assertEqual(check_response.data['kandidat_pembanding'][0]['nama'], 'KOPI KITA')
+        self.assertEqual(
+            check_response.data['kandidat_pembanding'][0]['nomor_permohonan'],
+            'DID2026000999',
+        )
+        self.assertTrue(
+            check_response.data['kandidat_pembanding'][0]['uraian_barang_jasa'],
+        )
+        self.assertEqual(check_response.data['cakupan_data']['uraian_barang_jasa_tersedia'], 1)
+        self.assertGreaterEqual(check_response.data['indikator_tertinggi'], 80)
+        self.assertEqual(CekMerekLog.objects.count(), 1)
 
 
 class NiceClassificationTests(TestCase):
@@ -344,6 +430,28 @@ class NiceClassificationTests(TestCase):
 
 class BeritaResmiMerekSyncTests(TestCase):
     @patch('trademark.pdki_sync.PdfReader')
+    def test_detail_parser_maps_owner_and_description_per_class(self, reader_mock):
+        detail_text = (
+            'Alamat Pemohon\nNama Pemohon :\n:\nDian Lestari\nJl. Contoh\n'
+            '511 Kelas Barang/Jasa : 05, 30\n'
+            '510 Uraian Barang/Jasa : ===minuman suplemen kesehatan===\n'
+            '===teh kombucha; minuman berbahan dasar teh===\n'
+            'Nomor Permohonan\nTanggal Penerimaan\n540 EtiketDID2024098054\n'
+        )
+        reader_mock.return_value = SimpleNamespace(
+            pages=[SimpleNamespace(extract_text=lambda: detail_text)],
+        )
+
+        details = extract_bulletin_details(io.BytesIO(b'%PDF-fake'))
+
+        self.assertEqual(details['DID2024098054'].pemilik, 'Dian Lestari')
+        self.assertEqual(
+            details['DID2024098054'].uraian_per_kelas['5'],
+            'minuman suplemen kesehatan',
+        )
+        self.assertIn('teh kombucha', details['DID2024098054'].uraian_per_kelas['30'])
+
+    @patch('trademark.pdki_sync.PdfReader')
     def test_label_parser_pairs_images_across_page_boundaries(self, reader_mock):
         label_a = Image.new('RGB', (120, 80), 'red')
         label_b = Image.new('RGB', (80, 120), 'blue')
@@ -381,9 +489,12 @@ class BeritaResmiMerekSyncTests(TestCase):
         self.assertEqual(len(result.records), 2)
         self.assertEqual(result.records[1].kelas, ('35', '43'))
 
+    @patch('trademark.pdki_sync.extract_bulletin_details', return_value={})
     @patch('trademark.pdki_sync.parse_bulletin')
     @patch('trademark.pdki_sync.download_bulletin')
-    def test_sync_is_idempotent_per_application_and_class(self, download_mock, parse_mock):
+    def test_sync_is_idempotent_per_application_and_class(
+        self, download_mock, parse_mock, _details_mock,
+    ):
         download_mock.return_value = io.BytesIO(b'%PDF-fake')
         parse_mock.return_value = BulletinData(
             title='BRM Uji',
@@ -405,9 +516,12 @@ class BeritaResmiMerekSyncTests(TestCase):
         self.assertEqual(second.jumlah_diperbarui, 2)
         self.assertEqual(MirrorPDKI.objects.filter(nomor_permohonan='DID2026060002').count(), 2)
 
+    @patch('trademark.pdki_sync.extract_bulletin_details', return_value={})
     @patch('trademark.pdki_sync.parse_bulletin')
     @patch('trademark.pdki_sync.download_bulletin')
-    def test_older_archive_does_not_overwrite_newer_publication(self, download_mock, parse_mock):
+    def test_older_archive_does_not_overwrite_newer_publication(
+        self, download_mock, parse_mock, _details_mock,
+    ):
         download_mock.side_effect = [io.BytesIO(b'%PDF-new'), io.BytesIO(b'%PDF-old')]
         parse_mock.side_effect = [
             BulletinData(

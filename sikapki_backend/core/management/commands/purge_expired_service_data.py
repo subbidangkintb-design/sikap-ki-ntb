@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from chatbot.models import PercakapanChatbot
 from core.models import UjiCobaPengguna
-from trademark.models import CekMerekLog
+from trademark.models import CekMerekLog, KlasifikasiMerekLog
 
 
 class Command(BaseCommand):
@@ -28,6 +28,7 @@ class Command(BaseCommand):
         targets = {
             'percakapan': PercakapanChatbot.objects.filter(dibuat_pada__lt=cutoff),
             'cek_merek': CekMerekLog.objects.filter(dibuat_pada__lt=cutoff),
+            'klasifikasi_merek': KlasifikasiMerekLog.objects.filter(dibuat_pada__lt=cutoff),
             'uji_pengguna': UjiCobaPengguna.objects.filter(dibuat_pada__lt=cutoff),
         }
         counts = {name: queryset.count() for name, queryset in targets.items()}

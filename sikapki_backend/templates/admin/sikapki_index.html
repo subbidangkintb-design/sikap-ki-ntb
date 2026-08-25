@@ -75,6 +75,9 @@
     <a class="task-card {% if dashboard_metrics.faq_drafts %}danger{% else %}info{% endif %}" href="{% url 'admin:knowledge_faq_changelist' %}?status_validasi__exact=draf">
       <span class="task-label">FAQ menunggu verifikasi</span><span class="task-value">{{ dashboard_metrics.faq_drafts }}</span><span class="task-help">Tinjau perubahan sumber DJKI sebelum digunakan chatbot.</span>
     </a>
+    <a class="task-card {% if dashboard_metrics.unread_sla_notifications %}danger{% else %}info{% endif %}" href="{% url 'admin:core_slanotification_changelist' %}">
+      <span class="task-label">Notifikasi SLA</span><span class="task-value">{{ dashboard_metrics.unread_sla_notifications }}</span><span class="task-help">Buka notifikasi konsultasi yang melewati target tindak lanjut.</span>
+    </a>
   </section>
 
   <div class="section-heading"><div><h2>Aksi cepat</h2><p>Jalan pintas untuk pekerjaan yang paling sering dilakukan.</p></div></div>
@@ -82,7 +85,7 @@
     <a class="quick-card" href="{% url 'admin:knowledge_dokumenresmi_add' %}"><span class="quick-icon">+</span>Unggah dokumen resmi</a>
     <a class="quick-card" href="{% url 'admin:knowledge_faq_add' %}"><span class="quick-icon">FAQ</span>Tambah FAQ</a>
     <a class="quick-card" href="{% url 'admin:chatbot_percakapanchatbot_changelist' %}"><span class="quick-icon">KI</span>Riwayat konsultasi</a>
-    <a class="quick-card" href="{% url 'admin:trademark_cekmereklog_changelist' %}"><span class="quick-icon">M</span>Riwayat penelusuran</a>
+    <a class="quick-card" href="{% url 'admin:trademark_klasifikasimereklog_changelist' %}"><span class="quick-icon">M</span>Riwayat klasifikasi</a>
     <a class="quick-card" href="{% url 'admin:core_monitoringsnapshot_add' %}"><span class="quick-icon">MON</span>Buat bukti monitoring</a>
     <a class="quick-card" href="{% url 'admin:core_ujicobapengguna_changelist' %}"><span class="quick-icon">UX</span>Hasil uji pengguna</a>
     <a class="quick-card" href="{{ sikap_frontend_url }}" target="_blank" rel="noreferrer"><span class="quick-icon">WEB</span>Lihat portal publik</a>
@@ -91,7 +94,7 @@
   <div class="section-heading"><div><h2>Ringkasan layanan</h2><p>Angka operasional tanpa menampilkan data pribadi pengguna.</p></div></div>
   <section class="metric-grid">
     <div class="metric-card"><strong>Chatbot hari ini</strong><b>{{ dashboard_metrics.chatbot_today }}</b><small>{{ dashboard_metrics.chatbot_week }} interaksi minggu ini</small></div>
-    <div class="metric-card"><strong>Penelusuran hari ini</strong><b>{{ dashboard_metrics.cek_merek_today }}</b><small>{{ dashboard_metrics.cek_merek_week }} penelusuran minggu ini</small></div>
+    <div class="metric-card"><strong>Klasifikasi hari ini</strong><b>{{ dashboard_metrics.cek_merek_today }}</b><small>{{ dashboard_metrics.cek_merek_week }} analisis minggu ini</small></div>
     <div class="metric-card"><strong>Dokumen terverifikasi</strong><b>{{ dashboard_metrics.documents_verified }}</b><small>{{ dashboard_metrics.documents_queued }} mengantre atau diproses</small></div>
     <div class="metric-card"><strong>FAQ terverifikasi</strong><b>{{ dashboard_metrics.faq_verified }}</b><small>{{ dashboard_metrics.faq_drafts }} menunggu verifikasi petugas</small></div>
     <div class="metric-card"><strong>Eskalasi selesai</strong><b>{{ dashboard_metrics.escalated_resolved }}</b><small>{{ dashboard_metrics.escalated_total }} total konsultasi kompleks</small></div>
@@ -102,11 +105,10 @@
   <div class="section-heading"><div><h2>Kualitas dan kesehatan sistem</h2><p>Indikator untuk monitoring dan evaluasi layanan.</p></div></div>
   <section class="status-panel">
     <div class="panel-card">
-      <h3>Indikator hasil penelusuran merek</h3>
+      <h3>Asisten klasifikasi merek</h3>
       <div class="pill-row">
-        <span class="status-pill low">Rendah {{ dashboard_metrics.risk_distribution.rendah }}</span>
-        <span class="status-pill mid">Perlu ditinjau {{ dashboard_metrics.risk_distribution.sedang }}</span>
-        <span class="status-pill high">Perlu kehati-hatian {{ dashboard_metrics.risk_distribution.tinggi }}</span>
+        <span class="status-pill low">{{ dashboard_metrics.cek_merek_week }} analisis minggu ini</span>
+        <span class="status-pill mid">{{ dashboard_metrics.klasifikasi_perlu_klarifikasi }} memerlukan informasi tambahan</span>
       </div>
     </div>
     <div class="panel-card">

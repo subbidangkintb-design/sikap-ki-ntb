@@ -4,7 +4,6 @@ from datetime import datetime, time, timedelta
 from django.contrib import admin
 from django.core.cache import cache
 from django.db import DatabaseError
-from django.db.models import Count
 from django.urls import reverse
 from django.utils import timezone
 
@@ -35,9 +34,9 @@ def configure_admin_dashboard():
 
 def get_dashboard_metrics():
     from chatbot.models import PercakapanChatbot
-    from core.models import MonitoringSnapshot, UjiCobaPengguna
+    from core.models import MonitoringSnapshot, SlaNotification, UjiCobaPengguna
     from knowledge.models import DokumenResmi, FAQ
-    from trademark.models import CekMerekLog
+    from trademark.models import KlasifikasiMerekLog
 
     today = timezone.localdate()
     start_today = timezone.make_aware(datetime.combine(today, time.min))
@@ -64,9 +63,15 @@ def get_dashboard_metrics():
         escalated_overdue = PercakapanChatbot.objects.filter(
             dieskalasi=True, batas_tindak_lanjut__lt=timezone.now(),
         ).exclude(status_tindak_lanjut=PercakapanChatbot.StatusTindakLanjut.SELESAI).count()
-        cek_merek_today = CekMerekLog.objects.filter(dibuat_pada__gte=start_today).count()
-        cek_merek_week = CekMerekLog.objects.filter(dibuat_pada__gte=start_week).count()
-        risk_rows = CekMerekLog.objects.values('skor_risiko').annotate(total=Count('id'))
+        cek_merek_today = KlasifikasiMerekLog.objects.filter(
+            dibuat_pada__gte=start_today,
+        ).count()
+        cek_merek_week = KlasifikasiMerekLog.objects.filter(
+            dibuat_pada__gte=start_week,
+        ).count()
+        klasifikasi_perlu_klarifikasi = KlasifikasiMerekLog.objects.filter(
+            perlu_klarifikasi=True,
+        ).count()
         documents_verified = DokumenResmi.objects.filter(
             status_validasi=DokumenResmi.StatusValidasi.TERVERIFIKASI,
         ).count()
@@ -86,16 +91,9 @@ def get_dashboard_metrics():
         ).count()
         user_tests = UjiCobaPengguna.objects.count()
         snapshots = MonitoringSnapshot.objects.count()
+        unread_sla_notifications = SlaNotification.objects.filter(read_at__isnull=True).count()
     except DatabaseError:
         return _empty_metrics()
-
-    risk_distribution = {
-        'rendah': 0,
-        'sedang': 0,
-        'tinggi': 0,
-    }
-    for row in risk_rows:
-        risk_distribution[row['skor_risiko']] = row['total']
 
     return {
         'chatbot_today': chatbot_today,
@@ -108,7 +106,7 @@ def get_dashboard_metrics():
         'escalated_overdue': escalated_overdue,
         'cek_merek_today': cek_merek_today,
         'cek_merek_week': cek_merek_week,
-        'risk_distribution': risk_distribution,
+        'klasifikasi_perlu_klarifikasi': klasifikasi_perlu_klarifikasi,
         'documents_verified': documents_verified,
         'documents_queued': documents_queued,
         'documents_failed': documents_failed,
@@ -116,6 +114,7 @@ def get_dashboard_metrics():
         'faq_verified': faq_verified,
         'user_tests': user_tests,
         'snapshots': snapshots,
+        'unread_sla_notifications': unread_sla_notifications,
     }
 
 
@@ -131,7 +130,7 @@ def _empty_metrics():
         'escalated_overdue': 0,
         'cek_merek_today': 0,
         'cek_merek_week': 0,
-        'risk_distribution': {'rendah': 0, 'sedang': 0, 'tinggi': 0},
+        'klasifikasi_perlu_klarifikasi': 0,
         'documents_verified': 0,
         'documents_queued': 0,
         'documents_failed': 0,
@@ -139,4 +138,5 @@ def _empty_metrics():
         'faq_verified': 0,
         'user_tests': 0,
         'snapshots': 0,
+        'unread_sla_notifications': 0,
     }

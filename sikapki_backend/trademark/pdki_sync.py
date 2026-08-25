@@ -9,6 +9,7 @@ from typing import BinaryIO
 from urllib.parse import urljoin
 
 import requests
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
@@ -17,7 +18,7 @@ from PIL import Image, ImageOps
 from pypdf import PdfReader
 from pypdf._font import Font
 
-from core.http_client import configure_ai_network
+from core.http_client import configure_ai_network, request_with_retry
 
 from .models import MirrorPDKI, SinkronisasiPDKILog
 
@@ -57,13 +58,23 @@ class BulletinData:
     records: tuple[BulletinRecord, ...]
 
 
+@dataclass(frozen=True)
+class BulletinDetail:
+    pemilik: str
+    uraian_per_kelas: dict[str, str]
+
+
 def discover_bulletin_urls(limit: int = 1) -> list[str]:
     configure_ai_network()
     try:
-        response = requests.get(
-            BRM_LIST_URL,
-            headers={'User-Agent': CRAWLER_USER_AGENT, 'Accept': 'text/html'},
-            timeout=REQUEST_TIMEOUT,
+        response = request_with_retry(
+            lambda: requests.get(
+                BRM_LIST_URL,
+                headers={'User-Agent': CRAWLER_USER_AGENT, 'Accept': 'text/html'},
+                timeout=REQUEST_TIMEOUT,
+            ),
+            attempts=getattr(settings, 'DJKI_REQUEST_RETRIES', 3) + 1,
+            backoff=getattr(settings, 'DJKI_RETRY_BACKOFF_SECONDS', 2),
         )
         response.raise_for_status()
     except requests.RequestException as exc:
@@ -87,12 +98,17 @@ def download_bulletin(url: str) -> BinaryIO:
     target = tempfile.SpooledTemporaryFile(max_size=12 * 1024 * 1024, mode='w+b')
     downloaded = 0
     try:
-        with requests.get(
-            url,
-            headers={'User-Agent': CRAWLER_USER_AGENT, 'Accept': 'application/pdf'},
-            timeout=REQUEST_TIMEOUT,
-            stream=True,
-        ) as response:
+        response = request_with_retry(
+            lambda: requests.get(
+                url,
+                headers={'User-Agent': CRAWLER_USER_AGENT, 'Accept': 'application/pdf'},
+                timeout=REQUEST_TIMEOUT,
+                stream=True,
+            ),
+            attempts=getattr(settings, 'DJKI_REQUEST_RETRIES', 3) + 1,
+            backoff=getattr(settings, 'DJKI_RETRY_BACKOFF_SECONDS', 2),
+        )
+        with response:
             response.raise_for_status()
             for chunk in response.iter_content(chunk_size=256 * 1024):
                 if not chunk:
@@ -193,6 +209,62 @@ def extract_bulletin_labels(pdf_file: BinaryIO) -> dict[str, bytes]:
     }
 
 
+def extract_bulletin_details(pdf_file: BinaryIO) -> dict[str, BulletinDetail]:
+    """Baca pemilik dan uraian per kelas dari halaman detail BRM."""
+    _install_pypdf_font_width_workaround()
+    reader = PdfReader(pdf_file)
+    collected = []
+    detail_started = False
+    for page in reader.pages:
+        text = page.extract_text() or ''
+        if LABEL_PATTERN.search(text):
+            detail_started = True
+        if detail_started:
+            collected.append(text)
+    full_text = '\n'.join(collected)
+    details = {}
+    marker = re.compile(r'540\s+Etiket\s*([A-Z]{2,6}\d{8,})', re.IGNORECASE)
+    previous_end = 0
+    for match in marker.finditer(full_text):
+        block = full_text[previous_end:match.start()]
+        previous_end = match.end()
+        number = match.group(1).upper()
+        classes_match = re.search(
+            r'511\s+Kelas\s+Barang/Jasa\s*:[ \t]*([0-9, \t]+)', block, re.IGNORECASE,
+        )
+        description_match = re.search(
+            r'510\s+Uraian\s+Barang/Jasa\s*:\s*(.+?)(?=Nomor\s+Permohonan)',
+            block, re.IGNORECASE | re.DOTALL,
+        )
+        if not classes_match or not description_match:
+            continue
+        classes = [
+            str(int(value.strip()))
+            for value in classes_match.group(1).split(',')
+            if value.strip().isdigit() and 1 <= int(value.strip()) <= 45
+        ]
+        descriptions = [
+            _clean_goods_services(value)
+            for value in re.findall(r'===\s*(.*?)\s*===', description_match.group(1), re.DOTALL)
+            if _clean_goods_services(value)
+        ]
+        if not descriptions:
+            fallback = _clean_goods_services(description_match.group(1).replace('===', ' '))
+            descriptions = [fallback] if fallback else []
+        if not descriptions:
+            continue
+        if len(descriptions) == len(classes):
+            per_class = dict(zip(classes, descriptions))
+        else:
+            combined = '; '.join(descriptions)
+            per_class = {class_number: combined for class_number in classes}
+        details[number] = BulletinDetail(
+            pemilik=_extract_owner(block),
+            uraian_per_kelas=per_class,
+        )
+    return details
+
+
 def sync_bulletin(
     url: str, force: bool = False, include_labels: bool = True,
 ) -> SinkronisasiPDKILog:
@@ -209,6 +281,7 @@ def sync_bulletin(
     try:
         pdf_file = download_bulletin(url)
         bulletin = parse_bulletin(pdf_file)
+        details = extract_bulletin_details(pdf_file)
         labels = extract_bulletin_labels(pdf_file) if include_labels else {}
         label_assets = _store_label_assets(labels, bulletin.records, url)
         created_count = 0
@@ -216,6 +289,7 @@ def sync_bulletin(
         with transaction.atomic():
             for record in bulletin.records:
                 for nice_class in record.kelas:
+                    detail = details.get(record.nomor_permohonan)
                     current = MirrorPDKI.objects.filter(
                         nomor_permohonan=record.nomor_permohonan,
                         kelas_nice=nice_class,
@@ -229,12 +303,29 @@ def sync_bulletin(
                     defaults = {
                         'nama_merek': record.nama_merek,
                         'status': MirrorPDKI.Status.DIAJUKAN,
-                        'pemilik': 'Lihat dokumen sumber DJKI',
                         'tanggal_penerimaan': record.tanggal_penerimaan,
                         'tanggal_publikasi': bulletin.publication_date,
                         'sumber_data': MirrorPDKI.SumberData.BRM_DJKI,
                         'sumber_data_url': url,
                     }
+                    if detail and detail.pemilik:
+                        defaults['pemilik'] = detail.pemilik
+                    elif not current:
+                        defaults['pemilik'] = 'Lihat dokumen sumber DJKI'
+                    goods_services = ''
+                    if detail:
+                        goods_services = detail.uraian_per_kelas.get(nice_class, '')
+                        unique_descriptions = list(dict.fromkeys(
+                            value for value in detail.uraian_per_kelas.values() if value
+                        ))
+                        if not goods_services and len(unique_descriptions) == 1:
+                            # Beberapa BRM mengekstrak nomor kelas secara tidak konsisten,
+                            # tetapi satu uraian tetap aman dipasangkan ke satu permohonan.
+                            goods_services = unique_descriptions[0]
+                    if goods_services:
+                        defaults['uraian_barang_jasa'] = goods_services
+                    elif not current:
+                        defaults['uraian_barang_jasa'] = ''
                     label_asset = label_assets.get(record.nomor_permohonan)
                     if label_asset:
                         defaults.update({
@@ -257,7 +348,8 @@ def sync_bulletin(
             log.jumlah_diperbarui = updated_count
             log.selesai_pada = timezone.now()
             log.pesan = (
-                f'Data berasal dari Berita Resmi Merek DJKI; {len(label_assets)} etiket dipasangkan. '
+                f'Data berasal dari Berita Resmi Merek DJKI; {len(details)} detail uraian dibaca '
+                f'dan {len(label_assets)} etiket dipasangkan. '
                 'Verifikasi status terkini tetap melalui PDKI.'
             )
             log.save()
@@ -312,6 +404,19 @@ def _extract_publication_date(cover: str):
 def _clean_brand_name(value: str) -> str:
     cleaned = re.sub(r'\s+', ' ', value).strip(' -')
     return cleaned[:255] or '(Merek tanpa unsur kata)'
+
+
+def _clean_goods_services(value: str) -> str:
+    return re.sub(r'\s+', ' ', value or '').strip(' ;')
+
+
+def _extract_owner(block: str) -> str:
+    match = re.search(
+        r'Nama\s+Pemohon\s*:\s*\n\s*:\s*([^\n:]+)', block, re.IGNORECASE,
+    )
+    if not match:
+        match = re.search(r'Nama\s+Pemohon\s*:\s*([^\n:]+)', block, re.IGNORECASE)
+    return re.sub(r'\s+', ' ', match.group(1)).strip()[:255] if match else ''
 
 
 def _compress_label_image(image: Image.Image) -> bytes:

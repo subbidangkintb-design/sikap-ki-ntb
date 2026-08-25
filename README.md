@@ -147,7 +147,7 @@ http://127.0.0.1:5173
 
 ## 4. Skenario Demo Kadiv
 
-### A. Cek & Saran Merek
+### A. Asisten Klasifikasi Awal Merek
 
 Buka:
 
@@ -167,17 +167,12 @@ kedai kopi kemasan dan minuman siap saji
 
 Hasil yang diharapkan:
 
-- kelas Nice terdeteksi sekitar `30` dan/atau `43`,
-- muncul merek mirip dari data seed seperti varian `Kopi Kita` atau `Sasak Lombok`,
-- skor risiko idealnya `sedang` untuk demo,
-- saran naratif muncul,
-- disclaimer terlihat jelas.
-
-Jika daftar merek mirip kosong, jalankan ulang:
-
-```powershell
-python manage.py seed_demo_data
-```
+- tampil hingga tiga rekomendasi kelas Nice yang paling relevan;
+- setiap kelas disertai alasan dan istilah barang/jasa resmi (nomor dasar);
+- jika uraian masih ambigu, sistem meminta informasi tambahan;
+- tersedia tautan verifikasi ke SKM DJKI, PDKI, dan Helpdesk KI;
+- disclaimer menjelaskan bahwa sistem tidak menilai kemiripan nama/logo dan
+  tidak memprediksi keputusan pemeriksa.
 
 Lalu cek data mirror:
 
@@ -263,22 +258,47 @@ http://127.0.0.1:8000/admin/
 
 Halaman admin sudah memiliki dashboard ringkas, filter eskalasi chatbot, status embedding dokumen, dan textarea nyaman untuk teks panjang.
 
-### Menyiapkan pembanding visual etiket merek
+### Batas fungsi logo dan data merek
 
-Upload logo pengguna tidak disimpan. Logo hanya dibaca di memori, diubah menjadi sidik visual ringkas, lalu dibandingkan dengan sidik etiket referensi yang tersedia. Proses ini tidak mengunduh model AI lokal dan tidak mengirim logo pengguna ke layanan pihak ketiga.
+Logo pada formulir hanya ditampilkan sebagai pratinjau lokal di browser. Berkas
+tidak dikirim ke backend, tidak disimpan, dan tidak dinilai AI. Pengguna tetap
+diarahkan melakukan penelusuran nama dan gambar melalui PDKI resmi.
 
-1. Di admin, buka **Mirror PDKI** lalu pilih data merek.
-2. Unggah **Label merek** PNG/JPEG dari data resmi yang sudah diverifikasi.
-3. Isi **Sumber label URL** dengan tautan halaman PDKI resmi sebagai jejak audit.
-4. Simpan. Kolom **Visual siap** akan aktif setelah embedding berhasil dibuat.
+Data mirror/BRM dan log hasil kemiripan dari versi sebelumnya dipertahankan
+sebagai arsip internal dan bukti perjalanan pengembangan. Data tersebut tidak
+dipakai untuk menghasilkan rekomendasi pada alur publik saat ini.
 
-Untuk mengindeks ulang semua etiket yang sudah diunggah:
+### Mengaktifkan AI Cek Merek secara opsional
 
-```powershell
-.\.venv\Scripts\python.exe manage.py reindex_visual_merek --force
+Fitur pembanding dapat dihidupkan atau dimatikan dengan satu variabel pada
+`sikapki_backend/.env`:
+
+```env
+AI_TRADEMARK_CHECK_ENABLED=True
 ```
 
+Restart backend setelah mengubah nilai. Frontend membaca status fitur dari
+backend secara otomatis dan menampilkan tab **AI Cek Merek**. Ubah menjadi
+`False` lalu restart backend untuk kembali ke mode klasifikasi saja.
+
+Fitur opsional membandingkan nama dengan data mirror lokal dan, jika logo
+diunggah, membandingkan visual dengan etiket yang sudah memiliki embedding.
+Persentase yang tampil adalah indikator teknis pada data yang tersedia, bukan
+probabilitas diterima/ditolak atau keputusan resmi DJKI.
+
 Etiket dari Berita Resmi Merek DJKI diekstrak otomatis, diperkecil maksimal 384 × 384 piksel, dan disimpan sebagai JPEG hemat ruang. Cakupan hasil visual selalu mengikuti jumlah etiket publikasi yang berhasil tersinkron dan tidak boleh disebut sebagai penelusuran seluruh PDKI.
+
+Untuk melengkapi nomor permohonan, pemilik, dan uraian barang/jasa pada data
+BRM yang sudah tersimpan, jalankan pengayaan secara bertahap dari folder
+`sikapki_backend`:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py sync_berita_resmi_merek --enrich-details --batch-size 5 --delay 2
+```
+
+Perintah ini aman dijalankan berulang kali. Setiap eksekusi memilih publikasi
+yang uraiannya masih kosong, membaca halaman detail dari PDF resmi DJKI, dan
+mempertahankan data lama apabila suatu detail tidak ditemukan.
 
 ### Sinkronisasi data pembanding merek resmi
 
@@ -322,15 +342,15 @@ Untuk menjalankannya berkala di Windows Task Scheduler:
 4. Isi **Start in** dengan path absolut folder `sikapki_backend`.
 5. Aktifkan percobaan ulang bila task gagal, misalnya setiap 30 menit maksimal 3 kali.
 
-Riwayat proses dapat dilihat di admin pada menu **Sinkronisasi PDKI Log**. Data Berita Resmi Merek adalah data publikasi permohonan, bukan salinan lengkap PDKI dan bukan status hukum terkini. Hasil cek tetap harus menyediakan tautan sumber serta mengarahkan verifikasi akhir ke PDKI/Helpdesk KI Kanwil Kementerian Hukum NTB.
+Riwayat proses dapat dilihat di admin pada menu **Sinkronisasi PDKI Log**. Data Berita Resmi Merek adalah data publikasi permohonan, bukan salinan lengkap PDKI dan bukan status hukum terkini. Alur publik tidak menilai kemiripan dan tetap mengarahkan penelusuran nama/logo ke PDKI serta konsultasi ke Helpdesk KI Kanwil Kementerian Hukum NTB.
 
 ### Role dan keamanan akses
 
 - `Super Admin`: akses penuh dan dapat membuat akun petugas.
 - `Petugas KI`: mengelola knowledge base serta membaca histori layanan.
 - `Verifikator`: memeriksa knowledge base dan histori layanan.
-- Pengguna publik hanya dapat memakai layanan cek merek, chatbot, dan membaca FAQ.
-- Histori chatbot dan cek merek tidak dapat dibaca melalui API tanpa akun petugas.
+- Pengguna publik hanya dapat memakai asisten klasifikasi merek, chatbot, dan membaca FAQ.
+- Histori chatbot dan klasifikasi merek tidak dapat dibaca melalui API tanpa akun petugas.
 
 Untuk membuat akun petugas melalui admin:
 
@@ -359,6 +379,79 @@ Untuk langsung melihat pertanyaan dieskalasi:
 ```text
 http://127.0.0.1:8000/admin/chatbot/percakapanchatbot/?dieskalasi__exact=1
 ```
+
+### Worker background, retry, dan notifikasi SLA
+
+Pekerjaan yang lambat tidak perlu menunggu di request browser. Jalankan satu
+worker dari folder `sikapki_backend` pada mesin yang menjadi server lokal:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py process_background_jobs --watch
+```
+
+Worker memproses antrean AI chatbot, indexing dokumen/FAQ, dan pengayaan detail
+BRM. Jika gagal, job diulang dengan jeda bertahap sampai batas
+`BACKGROUND_JOB_MAX_ATTEMPTS`. Status job chatbot dapat dipantau frontend melalui
+`GET /api/core/jobs/<job_id>/`.
+
+Untuk impor satu kali daftar istilah dari SKM DJKI (jika akses HTTP diizinkan):
+
+```powershell
+.\.venv\Scripts\python.exe manage.py sync_skm_nice --dry-run --delay 2
+.\.venv\Scripts\python.exe manage.py sync_skm_nice --delay 2 --force
+```
+
+Perintah ini membaca halaman kelas 1–45, menyimpan versi dan URL sumber, serta
+berhenti jika SKM mengembalikan 403/429. Sistem tidak melewati CAPTCHA/WAF.
+
+Jika akses otomatis ditolak, gunakan akses satu kali melalui browser:
+
+1. Buka halaman kelas SKM secara normal, misalnya `https://skm.dgip.go.id/index.php/skm/detailkelas/1`.
+2. Pilih **Save Page As** dan simpan sebagai `1.html`, lalu lakukan untuk kelas lain yang diperlukan (`2.html` sampai `45.html`) dalam satu folder.
+3. Import seluruh file lokal tanpa koneksi ke SKM:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py sync_skm_nice --local-dir .\data\skm-html --force
+```
+
+Mode `--local-dir` hanya membaca file yang sudah disimpan dan tidak mencoba
+melewati WAF atau meminta ulang halaman ke internet.
+
+Untuk memasukkan dokumen terverifikasi yang belum terindeks ke antrean:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py enqueue_knowledge_indexing --limit 50
+```
+
+Untuk memasukkan pengayaan uraian BRM ke antrean tanpa menahan proses web:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py sync_berita_resmi_merek --enrich-details --enqueue --batch-size 20
+```
+
+Jalankan pemeriksaan konsultasi yang melewati SLA secara berkala (misalnya
+Task Scheduler setiap 10 menit):
+
+```powershell
+.\.venv\Scripts\python.exe manage.py notify_overdue_consultations
+```
+
+Notifikasi bersifat idempoten, hanya dibuat sekali untuk setiap petugas dan
+konsultasi. Perubahan data melalui Django Admin dicatat otomatis pada menu
+**Audit Log Admin**, termasuk aktor, waktu, objek, dan field yang berubah.
+
+Konfigurasi retry/fallback berada di `.env`:
+
+```env
+AI_REQUEST_RETRIES=2
+AI_RETRY_BACKOFF_SECONDS=1
+AI_FALLBACK_PROVIDER=deepseek
+DJKI_REQUEST_RETRIES=3
+DJKI_RETRY_BACKOFF_SECONDS=2
+```
+
+Isi `AI_FALLBACK_PROVIDER` hanya jika kredensial provider cadangan tersedia.
+Worker tetap aman dijalankan ulang setelah komputer atau koneksi terputus.
 
 ## 7. Troubleshooting
 

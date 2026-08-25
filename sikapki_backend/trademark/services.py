@@ -8,6 +8,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from django.conf import settings
+from django.db.models import Count, Q
 from django.utils import timezone
 from PIL import Image, ImageOps, UnidentifiedImageError
 from rapidfuzz import fuzz, process, utils
@@ -157,18 +159,42 @@ def _match_wipo_nice_terms(
         candidate_floor = max(65.0, ranked[0][0] - 12.0)
         ranked = [item for item in ranked if item[0] >= candidate_floor]
 
+    skm_counts = dict(
+        NiceClassificationTerm.objects.filter(
+            source=NiceClassificationTerm.Source.SKM_DJKI,
+        ).values('class_number').annotate(total=Count('id')).values_list('class_number', 'total')
+    )
+    skm_version = (
+        NiceClassificationTerm.objects.filter(
+            source=NiceClassificationTerm.Source.SKM_DJKI,
+        ).order_by('-version').values_list('version', flat=True).first() or ''
+    )
+    top_k = max(1, min(int(getattr(settings, 'CLASSIFICATION_TOP_K', 3)), 10))
+    selected_ranked = ranked[:top_k]
+    translations = _translate_wipo_terms([
+        item['istilah'] for _, _, evidence in selected_ranked for item in evidence
+    ])
     options = []
-    for score, class_number, evidence in ranked[:3]:
-        best_term = evidence[0]['istilah'] if evidence else 'istilah resmi terkait'
+    for score, class_number, evidence in selected_ranked:
+        translated_evidence = [
+            {**item, 'istilah': translations.get(item['istilah'], item['istilah'])}
+            for item in evidence
+        ]
+        skm_evidence = _match_skm_terms(class_number, search_phrases, description)
+        display_evidence = skm_evidence or translated_evidence
+        best_term = display_evidence[0]['istilah'] if display_evidence else 'istilah resmi terkait'
+        source_label = 'Nice Classification — sumber resmi dan validasi silang'
         options.append({
             'kelas': class_number,
             'keyakinan': round(score / 100, 2),
-            'alasan': f'Cocok dengan istilah resmi WIPO: {best_term}.',
+            'alasan': f'Cocok dengan istilah resmi: {best_term}.',
             'deskripsi_kelas': class_map.get(class_number, ''),
-            'istilah_resmi': evidence,
-            'sumber': WIPO_NICE_LABEL,
-            'sumber_url': evidence[0]['sumber_url'] if evidence else '',
+            'istilah_resmi': display_evidence,
+            'sumber': source_label,
+            'sumber_url': display_evidence[0]['sumber_url'] if display_evidence else '',
             'skm_url': SKM_CLASS_URL.format(class_number=class_number),
+            'skm_terms_tersedia': skm_counts.get(class_number, 0),
+            'skm_version': skm_version,
         })
 
     top_score = ranked[0][0] if ranked else 0.0
@@ -189,8 +215,97 @@ def _match_wipo_nice_terms(
         'opsi_kelas': options,
         'perlu_klarifikasi': needs_clarification,
         'pertanyaan_klarifikasi': question,
-        'sumber_klasifikasi': WIPO_NICE_LABEL,
+        'sumber_klasifikasi': 'Nice Classification (sumber resmi tervalidasi; WIPO/SKM)',
+        'rangkaian_kelas': [{
+            'kelas': item['kelas'],
+            'keyakinan': item['keyakinan'],
+            'alasan': 'Kandidat kelas yang dapat dipertimbangkan bersama sesuai uraian usaha; konfirmasi setiap kelas secara resmi.',
+        } for item in options],
     }
+
+
+def _translate_wipo_terms(terms: list[str]) -> dict[str, str]:
+    unique_terms = list(dict.fromkeys(term for term in terms if term))
+    if not unique_terms:
+        return {}
+    phrase_map = {
+        'medicinal hair growth preparations': 'sediaan obat untuk pertumbuhan rambut',
+        'antibacterial soap': 'sabun antibakteri',
+        'hair growth shampoo': 'sampo pertumbuhan rambut',
+        'cosmetics': 'kosmetik',
+        'pharmaceutical preparations': 'sediaan farmasi',
+        'cleaning preparations': 'sediaan pembersih',
+    }
+    word_map = {
+        'medicinal': 'obat', 'medical': 'medis', 'preparations': 'sediaan',
+        'preparation': 'sediaan', 'hair': 'rambut', 'growth': 'pertumbuhan',
+        'shampoo': 'sampo', 'soap': 'sabun', 'antibacterial': 'antibakteri',
+        'pharmaceutical': 'farmasi', 'cosmetics': 'kosmetik', 'cosmetic': 'kosmetik',
+        'cleaning': 'pembersih', 'services': 'jasa', 'service': 'jasa',
+        'software': 'perangkat lunak', 'food': 'makanan', 'beverages': 'minuman',
+    }
+    translated = {}
+    for term in unique_terms:
+        normalized = re.sub(r'\s+', ' ', term.lower()).strip()
+        if normalized in phrase_map:
+            translated[term] = phrase_map[normalized]
+            continue
+        words = [word_map.get(word, word) for word in re.findall(r'[a-z0-9-]+', normalized)]
+        candidate = ' '.join(words).strip()
+        if candidate and candidate != normalized:
+            translated[term] = candidate[:700]
+    return translated
+
+
+def _match_skm_terms(
+    class_number: str,
+    phrases: list[str],
+    description: str = '',
+    limit: int = 12,
+) -> list[dict[str, Any]]:
+    """Ambil uraian SKM yang paling dekat dengan frasa pencarian WIPO/AI."""
+    rows = list(
+        NiceClassificationTerm.objects.filter(
+            source=NiceClassificationTerm.Source.SKM_DJKI,
+            class_number=class_number,
+        ).values('basic_number', 'indication_en', 'synonyms_en', 'source_url')
+    )
+    if not rows:
+        return []
+    searchable = {
+        index: ' ; '.join([row['indication_en'], *(row['synonyms_en'] or [])])
+        for index, row in enumerate(rows)
+    }
+    results = {}
+    search_inputs = list(phrases)
+    original = re.sub(r'\s+', ' ', description or '').strip().lower()
+    if original:
+        search_inputs.append(original)
+        words = re.findall(r'[a-zA-ZÀ-ÿ]{3,}', original)
+        search_inputs.extend(words)
+        search_inputs.extend(
+            ' '.join(words[index:index + 2])
+            for index in range(max(0, len(words) - 1))
+        )
+    for phrase in search_inputs:
+        for label, raw_score, row_index in process.extract(
+            phrase, searchable, scorer=fuzz.token_set_ratio, processor=utils.default_process,
+            limit=12, score_cutoff=35,
+        ):
+            if not _has_meaningful_token_overlap(phrase, label):
+                continue
+            score = round(float(raw_score), 1)
+            previous = results.get(row_index)
+            if previous is None or score > previous['skor']:
+                row = rows[row_index]
+                results[row_index] = {
+                    'istilah': row['indication_en'],
+                    'basic_number': row['basic_number'],
+                    'skor': score,
+                    'frasa_pencarian': phrase,
+                    'sumber_url': row['source_url'],
+                }
+    return sorted(results.values(), key=lambda item: item['skor'], reverse=True)[:limit]
 
 
 def _has_meaningful_token_overlap(phrase: str, official_text: str) -> bool:
@@ -341,30 +456,56 @@ def find_similar_trademarks(
     kelas_nice: list[str],
     threshold: int = SIMILARITY_THRESHOLD,
     query_visual_embedding: list[float] | None = None,
+    goods_services_description: str = '',
 ) -> list[dict[str, Any]]:
     target_classes = [str(kelas).strip() for kelas in kelas_nice if str(kelas).strip()]
     queryset = MirrorPDKI.objects.all()
     if target_classes:
-        queryset = queryset.filter(kelas_nice__in=target_classes)
+        candidate_filter = Q(kelas_nice__in=target_classes)
+        # Merek yang sama/sangat dekat di kelas lain tetap perlu terlihat.
+        # Ambil kandidat lintas kelas secara terbatas dari unsur pembeda nama,
+        # lalu saring kembali dengan skor tinggi di bawah agar tidak membanjiri hasil.
+        distinctive_tokens = [
+            token for token in _distinctive_brand_tokens(nama_merek) if len(token) >= 4
+        ]
+        for token in distinctive_tokens[:3]:
+            candidate_filter |= Q(nama_merek__icontains=token)
+        queryset = queryset.filter(candidate_filter).distinct()
 
     matches = []
     for record in queryset:
         text_score = calculate_similarity_score(nama_merek, record.nama_merek)
+        goods_score = calculate_goods_services_similarity(
+            goods_services_description, record.uraian_barang_jasa,
+        )
         visual_score = None
         if query_visual_embedding and record.visual_embedding:
             visual_score = calculate_visual_similarity(query_visual_embedding, record.visual_embedding)
+        same_target_class = not target_classes or record.kelas_nice in target_classes
+        if not same_target_class and text_score < 88:
+            continue
         if text_score < threshold and (visual_score is None or visual_score < VISUAL_SIMILARITY_THRESHOLD):
             continue
-        combined_score = (
-            int(round((text_score * 0.45) + (visual_score * 0.55)))
-            if visual_score is not None else text_score
-        )
+        combined_score = calculate_combined_indicator(text_score, goods_score, visual_score)
         matches.append({
             'id': record.id,
             'nomor_permohonan': record.nomor_permohonan,
             'nama': record.nama_merek,
             'kelas': record.kelas_nice,
+            'kelas_sesuai_rekomendasi': same_target_class,
             'status': record.get_status_display(),
+            'pemilik': record.pemilik,
+            'uraian_barang_jasa': record.uraian_barang_jasa,
+            'skor_kesesuaian_barang_jasa': goods_score,
+            'hubungan_barang_jasa': describe_goods_services_relationship(goods_score),
+            'tanggal_daftar': record.tanggal_daftar.isoformat() if record.tanggal_daftar else None,
+            'tanggal_penerimaan': (
+                record.tanggal_penerimaan.isoformat() if record.tanggal_penerimaan else None
+            ),
+            'tanggal_publikasi': (
+                record.tanggal_publikasi.isoformat() if record.tanggal_publikasi else None
+            ),
+            'tanggal_sinkron_terakhir': record.tanggal_sinkron_terakhir.isoformat(),
             'skor_kemiripan': text_score,
             'skor_visual': visual_score,
             'skor_gabungan': combined_score,
@@ -373,16 +514,56 @@ def find_similar_trademarks(
             'sumber_data': record.get_sumber_data_display(),
             'sumber_data_url': record.sumber_data_url,
             'alasan_kemiripan': explain_similarity(
-                nama_merek, record.nama_merek, text_score, visual_score,
+                nama_merek, record.nama_merek, text_score, visual_score, goods_score,
             ),
         })
 
-    matches.sort(key=lambda item: item['skor_gabungan'], reverse=True)
+    matches.sort(key=lambda item: (
+        item['skor_kemiripan'] >= 95,
+        item['skor_gabungan'],
+        item['skor_kemiripan'],
+        item['kelas_sesuai_rekomendasi'],
+    ), reverse=True)
     return matches[:10]
+
+
+def calculate_goods_services_similarity(query_description: str, reference_description: str) -> int | None:
+    """Bandingkan uraian hanya bila uraian resmi pembanding benar-benar tersedia."""
+    query = utils.default_process(query_description or '')
+    reference = utils.default_process(reference_description or '')
+    if not query or not reference:
+        return None
+    return int(round(max(
+        fuzz.token_set_ratio(query, reference),
+        fuzz.WRatio(query, reference),
+    )))
+
+
+def calculate_combined_indicator(
+    name_score: int, goods_score: int | None, visual_score: int | None,
+) -> int:
+    if goods_score is not None and visual_score is not None:
+        return int(round((name_score * 0.50) + (goods_score * 0.30) + (visual_score * 0.20)))
+    if goods_score is not None:
+        return int(round((name_score * 0.65) + (goods_score * 0.35)))
+    if visual_score is not None:
+        return int(round((name_score * 0.45) + (visual_score * 0.55)))
+    return name_score
+
+
+def describe_goods_services_relationship(score: int | None) -> str:
+    if score is None:
+        return 'Uraian pembanding belum tersedia'
+    if score >= 75:
+        return 'Sangat terkait'
+    if score >= 45:
+        return 'Sebagian terkait'
+    return 'Terindikasi berbeda'
 
 
 def explain_similarity(
     query_name: str, reference_name: str, text_score: int, visual_score: int | None,
+    goods_score: int | None = None,
 ) -> list[str]:
     """Berikan alasan transparan tanpa menyimpulkan hasil pemeriksaan hukum."""
     query_tokens = _distinctive_brand_tokens(query_name)
@@ -410,7 +591,17 @@ def explain_similarity(
             reasons.append('Komposisi visual etiket terindikasi sangat berdekatan pada pembanding yang tersedia.')
         elif visual_score >= VISUAL_SIMILARITY_THRESHOLD:
             reasons.append('Terdapat kemiripan visual etiket di atas ambang penelusuran awal.')
-    return reasons[:3]
+    if goods_score is None:
+        reasons.append('Uraian barang/jasa pembanding belum tersedia sehingga belum dapat dinilai.')
+    elif goods_score >= 75:
+        reasons.append('Uraian barang/jasa sangat berkaitan dengan deskripsi yang diajukan.')
+    elif goods_score >= 45:
+        reasons.append('Sebagian unsur uraian barang/jasa berkaitan dengan deskripsi yang diajukan.')
+    else:
+        reasons.append(
+            'Uraian barang/jasa terindikasi berbeda; hal ini tidak otomatis memastikan merek dapat didaftarkan.'
+        )
+    return reasons[:4]
 
 
 def validate_logo_upload(uploaded_file) -> tuple[bytes, str]:
@@ -572,10 +763,16 @@ def determine_risk(similar_trademarks: list[dict[str, Any]]) -> str:
 
     highest = max(_effective_score(item) for item in similar_trademarks)
     strong_matches = sum(1 for item in similar_trademarks if _effective_score(item) >= 80)
+    highest_name = max(int(item.get('skor_kemiripan', 0)) for item in similar_trademarks)
+    same_name_related_goods = any(
+        int(item.get('skor_kemiripan', 0)) >= 90
+        and int(item.get('skor_kesesuaian_barang_jasa') or 0) >= 65
+        for item in similar_trademarks
+    )
 
-    if highest >= 90 or strong_matches >= 3:
+    if highest >= 90 or strong_matches >= 3 or same_name_related_goods:
         return CekMerekLog.SkorRisiko.TINGGI
-    if highest >= 75 or len(similar_trademarks) >= 2:
+    if highest >= 75 or highest_name >= 90 or len(similar_trademarks) >= 2:
         return CekMerekLog.SkorRisiko.SEDANG
     return CekMerekLog.SkorRisiko.RENDAH
 

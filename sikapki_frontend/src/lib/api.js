@@ -4,6 +4,18 @@ const API_BASE_URL = (
 ).replace(/\/$/, '')
 const REQUEST_TIMEOUT_MS = 45_000
 
+async function waitForBackgroundJob(queued, label) {
+  if (!queued.job_id) return queued
+  const deadline = Date.now() + 120_000
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => window.setTimeout(resolve, 1000))
+    const job = await request(`/api/core/jobs/${encodeURIComponent(queued.job_id)}/`)
+    if (job.status === 'succeeded') return job.result
+    if (job.status === 'failed') throw new Error(job.error || `${label} gagal diproses.`)
+  }
+  throw new Error(`Antrean ${label.toLowerCase()} belum selesai. Pastikan worker background job sedang berjalan.`)
+}
+
 async function request(path, options = {}) {
   const controller = new AbortController()
   const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -40,28 +52,37 @@ async function request(path, options = {}) {
   return data
 }
 
-export function cekMerek(payload, logoFile = null) {
-  if (logoFile) {
-    const body = new FormData()
-    body.append('nama_merek', payload.nama_merek)
-    body.append('deskripsi_produk', payload.deskripsi_produk)
-    for (const kelas of payload.kelas_nice_dipilih || []) body.append('kelas_nice_dipilih', kelas)
-    body.append('logo_merek', logoFile)
-    return request('/api/trademark/cek/', { method: 'POST', body })
-  }
-  const jsonPayload = { ...payload }
-  if (!jsonPayload.kelas_nice_dipilih?.length) delete jsonPayload.kelas_nice_dipilih
+export function analisisKlasifikasiMerek(payload) {
   return request('/api/trademark/cek/', {
     method: 'POST',
-    body: JSON.stringify(jsonPayload),
+    body: JSON.stringify({ ...payload, asinkron: true }),
+  }).then((queued) => waitForBackgroundJob(queued, 'klasifikasi AI'))
+}
+
+export function getFiturMerek() {
+  return request('/api/trademark/fitur/')
+}
+
+export function eskalasiKelasMerek(payload) {
+  return request('/api/trademark/cek-kelas/eskalasi/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
+}
+
+export function cekKemiripanMerek(payload, logoFile = null) {
+  const body = new FormData()
+  body.append('nama_merek', payload.nama_merek)
+  body.append('deskripsi_produk', payload.deskripsi_produk)
+  if (logoFile) body.append('logo_merek', logoFile)
+  return request('/api/trademark/cek-kemiripan/', { method: 'POST', body })
 }
 
 export function tanyaChatbot(pertanyaan, sesiId) {
   return request('/api/chatbot/tanya/', {
     method: 'POST',
-    body: JSON.stringify({ pertanyaan, sesi_id: sesiId }),
-  })
+    body: JSON.stringify({ pertanyaan, sesi_id: sesiId, asinkron: true }),
+  }).then((queued) => waitForBackgroundJob(queued, 'chatbot'))
 }
 
 export function kirimRating(percakapanId, ratingMembantu) {

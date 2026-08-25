@@ -9,6 +9,8 @@ from rest_framework.throttling import ScopedRateThrottle
 
 from knowledge.rag_service import retrieve_relevant_chunks
 from core.permissions import IsSIKAPStaff
+from core.jobs import enqueue_job
+from core.models import BackgroundJob
 
 from .models import PercakapanChatbot
 from .ai_client import AIProviderError, generate_answer
@@ -50,6 +52,17 @@ class ChatbotViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         pertanyaan = serializer.validated_data['pertanyaan']
         sesi_id = serializer.validated_data.get('sesi_id') or uuid.uuid4()
+        if serializer.validated_data.get('asinkron'):
+            job = enqueue_job(
+                BackgroundJob.Kind.CHATBOT_AI,
+                {'pertanyaan': pertanyaan, 'sesi_id': str(sesi_id)},
+                created_by=request.user,
+            )
+            return Response({
+                'job_id': job.job_id,
+                'status': job.status,
+                'sesi_id': sesi_id,
+            }, status=status.HTTP_202_ACCEPTED)
         riwayat = _load_conversation_history(sesi_id)
         expertise = analyze_question(pertanyaan, riwayat)
 

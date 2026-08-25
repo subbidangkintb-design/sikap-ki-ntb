@@ -1,4 +1,5 @@
 from unittest.mock import patch
+from uuid import uuid4
 
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, override_settings
@@ -7,10 +8,11 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from chatbot.models import PercakapanChatbot
-from trademark.models import CekMerekLog
+from trademark.models import CekMerekLog, KlasifikasiMerekLog
 
 from .models import MonitoringSnapshot, UjiCobaPengguna, UserProfile
 from .http_client import configure_ai_network
+from .audit import _json_value
 
 
 class AccessControlTests(APITestCase):
@@ -32,6 +34,11 @@ class AccessControlTests(APITestCase):
             deskripsi_produk='Deskripsi usaha pengguna',
             kelas_nice_terdeteksi='30',
             skor_risiko=CekMerekLog.SkorRisiko.RENDAH,
+        )
+        self.classification_log = KlasifikasiMerekLog.objects.create(
+            nama_merek_diajukan='Merek Uji Klasifikasi',
+            deskripsi_produk='Kopi bubuk dalam kemasan',
+            rekomendasi_kelas=[{'kelas': '30'}],
         )
 
     def test_public_can_read_faq_but_cannot_create_it(self):
@@ -70,9 +77,11 @@ class AccessControlTests(APITestCase):
     def test_public_cannot_list_sensitive_service_records(self):
         chat_response = self.client.get(reverse('percakapanchatbot-list'))
         brand_response = self.client.get(reverse('cekmereklog-list'))
+        classification_response = self.client.get(reverse('klasifikasimereklog-list'))
 
         self.assertEqual(chat_response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(brand_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(classification_response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_public_statistics_are_aggregate_only(self):
         response = self.client.get(reverse('statistik-layanan'))
@@ -97,6 +106,7 @@ class AccessControlTests(APITestCase):
 
         chat_list = self.client.get(reverse('percakapanchatbot-list'))
         brand_list = self.client.get(reverse('cekmereklog-list'))
+        classification_list = self.client.get(reverse('klasifikasimereklog-list'))
         chat_create = self.client.post(
             reverse('percakapanchatbot-list'),
             {'pertanyaan': 'Bypass', 'jawaban': 'Bypass'},
@@ -110,6 +120,7 @@ class AccessControlTests(APITestCase):
 
         self.assertEqual(chat_list.status_code, status.HTTP_200_OK)
         self.assertEqual(brand_list.status_code, status.HTTP_200_OK)
+        self.assertEqual(classification_list.status_code, status.HTTP_200_OK)
         self.assertEqual(chat_create.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertEqual(brand_create.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 class AINetworkConfigurationTests(SimpleTestCase):
@@ -120,6 +131,13 @@ class AINetworkConfigurationTests(SimpleTestCase):
 
             from urllib3.util import connection
             self.assertFalse(connection.HAS_IPV6)
+
+
+class AdminAuditSerializationTests(SimpleTestCase):
+    def test_uuid_values_are_json_safe(self):
+        value = uuid4()
+
+        self.assertEqual(_json_value(value), str(value))
 
 
 class AdminWorkspaceTests(APITestCase):

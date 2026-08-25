@@ -58,7 +58,16 @@ Catat tanggal, petugas, ukuran backup, checksum, dan hasil uji restore. Backup b
 
 Mode localhost saat ini sengaja tidak memakai HTTPS. Untuk deployment publik gunakan reverse proxy TLS, kemudian set `DEBUG=False`, host/origin yang spesifik, dan aktifkan `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, serta `CSRF_COOKIE_SECURE`. Simpan secret dan API key pada secret manager atau environment server.
 
-API chatbot, cek merek, dan uji pengguna sudah memiliki rate limit. Unggahan tetap harus dibatasi berdasarkan ukuran dan tipe. Health check hanya menampilkan status konfigurasi, tidak pernah nilai API key.
+API chatbot, klasifikasi merek, dan uji pengguna sudah memiliki rate limit.
+Logo pada asisten klasifikasi hanya menjadi pratinjau lokal: tidak dikirim,
+disimpan, atau dinilai AI. Health check hanya menampilkan status konfigurasi,
+tidak pernah nilai API key.
+
+Mode opsional `AI_TRADEMARK_CHECK_ENABLED=True` mengirim logo sementara ke
+backend untuk membuat embedding dan membandingkannya dengan referensi lokal;
+file pengguna tidak disimpan. Aktifkan hanya bila cakupan, sumber, dan usia data
+pembanding telah ditinjau petugas. Setelah mengubah mode, restart backend dan
+uji kembali tautan verifikasi PDKI serta disclaimer hasil.
 
 ## Respons insiden
 

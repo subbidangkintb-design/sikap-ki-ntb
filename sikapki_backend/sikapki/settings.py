@@ -44,7 +44,7 @@ INSTALLED_APPS = [
     'corsheaders',
 
     # apps milik SIKAP-KI NTB
-    'core',
+    'core.apps.CoreConfig',
     'knowledge.apps.KnowledgeConfig',
     'trademark',
     'chatbot',
@@ -57,6 +57,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'core.middleware.AdminAuditMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -165,6 +166,11 @@ REST_FRAMEWORK = {
 
 HUMAN_OVERSIGHT_SLA_HOURS = env.int('HUMAN_OVERSIGHT_SLA_HOURS', default=24)
 SERVICE_LOG_RETENTION_DAYS = env.int('SERVICE_LOG_RETENTION_DAYS', default=365)
+AI_TRADEMARK_CHECK_ENABLED = env.bool('AI_TRADEMARK_CHECK_ENABLED', default=False)
+BACKGROUND_JOB_MAX_ATTEMPTS = env.int('BACKGROUND_JOB_MAX_ATTEMPTS', default=3)
+BACKGROUND_JOB_POLL_SECONDS = env.int('BACKGROUND_JOB_POLL_SECONDS', default=5)
+BACKGROUND_JOB_STALE_MINUTES = env.int('BACKGROUND_JOB_STALE_MINUTES', default=120)
+CLASSIFICATION_TOP_K = env.int('CLASSIFICATION_TOP_K', default=3)
 
 # Baseline keamanan. Opsi HTTPS tetap nonaktif pada localhost dan diaktifkan
 # lewat environment ketika aplikasi berada di belakang reverse proxy TLS.
@@ -212,6 +218,10 @@ CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 AI_PROVIDER = env('AI_PROVIDER', default='gemini')
 AI_MODEL = env('AI_MODEL', default=env('OLLAMA_MODEL', default='gemini-3.1-flash-lite'))
 AI_FORCE_IPV4 = env.bool('AI_FORCE_IPV4', default=True)
+AI_REQUEST_RETRIES = env.int('AI_REQUEST_RETRIES', default=2)
+AI_RETRY_BACKOFF_SECONDS = env.float('AI_RETRY_BACKOFF_SECONDS', default=1.0)
+AI_FALLBACK_PROVIDER = env('AI_FALLBACK_PROVIDER', default='')
+AI_FALLBACK_MODEL = env('AI_FALLBACK_MODEL', default='')
 
 OLLAMA_BASE_URL = env('OLLAMA_BASE_URL', default='http://localhost:11434')
 OLLAMA_MODEL = env('OLLAMA_MODEL', default=AI_MODEL)
@@ -230,3 +240,5 @@ GEMINI_OCR_MODEL = env('GEMINI_OCR_MODEL', default='gemini-3.1-flash-lite')
 
 DEEPSEEK_API_KEY = env('DEEPSEEK_API_KEY', default='')
 DEEPSEEK_BASE_URL = env('DEEPSEEK_BASE_URL', default='https://api.deepseek.com')
+DJKI_REQUEST_RETRIES = env.int('DJKI_REQUEST_RETRIES', default=3)
+DJKI_RETRY_BACKOFF_SECONDS = env.float('DJKI_RETRY_BACKOFF_SECONDS', default=2.0)

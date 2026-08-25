@@ -130,8 +130,10 @@ Buka `http://127.0.0.1:8000/admin/` untuk masuk ke Django Admin, atau
 | knowledge  | `/api/knowledge/dokumen/`                                      | CRUD dokumen resmi (sumber RAG)               |
 | knowledge  | `/api/knowledge/faq/`                                            | CRUD FAQ (sumber RAG), `retrieve` auto-tambah `jumlah_dilihat` |
 | trademark  | `/api/trademark/mirror-pdki/`                                    | Data merek (read-only, hasil mirror PDKI)     |
-| trademark  | `/api/trademark/mirror-pdki/search/?q=<nama>`                    | Cek kemiripan nama merek (tanpa logging)      |
-| trademark  | `/api/trademark/cek-merek-log/` (POST)                            | Cek risiko merek + auto-hitung `skor_risiko`  |
+| trademark  | `POST /api/trademark/cek/`                                        | Rekomendasi kelas/istilah Nice; tanpa penilaian kemiripan |
+| trademark  | `GET /api/trademark/klasifikasi-merek-log/`                       | Riwayat klasifikasi (khusus petugas)           |
+| trademark  | `/api/trademark/mirror-pdki/search/?q=<nama>`                     | Arsip pencarian data mirror (bukan alur publik) |
+| trademark  | `GET /api/trademark/cek-merek-log/`                               | Arsip log alur kemiripan versi sebelumnya      |
 | chatbot    | `/api/chatbot/percakapan/` (POST)                                  | Ajukan pertanyaan ke chatbot                  |
 | chatbot    | `/api/chatbot/percakapan/<id>/beri-rating/` (PATCH)                | Kirim feedback membantu/tidak                 |
 
@@ -159,6 +161,17 @@ menghasilkan duplikat) dan akan mengisi:
 
 ## 5. Langkah Selanjutnya (di luar scope fondasi ini)
 
+Untuk memperkaya data BRM yang telah tersimpan dengan pemilik dan uraian
+barang/jasa, jalankan dari folder backend:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py sync_berita_resmi_merek --enrich-details --batch-size 5 --delay 2
+```
+
+Mode ini tidak mengekstrak ulang etiket, tidak menghapus detail lama jika
+sumber gagal dibaca, dan dapat dijalankan kembali sampai seluruh publikasi
+selesai diperkaya.
+
 - Implementasi modul RAG (embedding `knowledge.DokumenResmi` /
   `knowledge.FAQ` ke ChromaDB, simpan `vector_id` hasilnya ke
   `knowledge.ChunkEmbedding`, lalu hubungkan ke
@@ -171,3 +184,26 @@ menghasilkan duplikat) dan akan mengisi:
   similarity search berbasis embedding.
 - Autentikasi API yang lebih production-ready (mis. token/JWT) jika frontend
   React tidak memakai session cookie.
+
+## 6. Worker background, retry, dan audit
+
+Jalankan worker terpisah agar proses AI, indexing, dan pengayaan BRM tidak
+menahan request web:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py process_background_jobs --watch
+```
+
+Perintah pendukung:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py enqueue_knowledge_indexing --limit 50
+.\.venv\Scripts\python.exe manage.py sync_berita_resmi_merek --enrich-details --enqueue --batch-size 20
+.\.venv\Scripts\python.exe manage.py notify_overdue_consultations
+```
+
+Provider AI dan sumber DJKI memiliki retry dengan backoff. Isi
+`AI_FALLBACK_PROVIDER` hanya jika API key provider cadangan tersedia. Perubahan
+melalui Django Admin dicatat pada **Audit Log Admin**. Endpoint pencarian mirror
+mendukung pagination dan filter `q`, `kelas_nice`, `status`, `sumber_data`,
+`ada_uraian`, `ada_nomor`, serta `ada_etiket`.

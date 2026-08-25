@@ -5,7 +5,11 @@ from django.utils import timezone
 
 from chatbot.models import PercakapanChatbot
 from knowledge.models import DokumenResmi
-from trademark.models import CekMerekLog, MirrorPDKI, SinkronisasiPDKILog
+from trademark.models import (
+    KlasifikasiMerekLog,
+    MirrorPDKI,
+    SinkronisasiPDKILog,
+)
 
 from .models import UjiCobaPengguna
 
@@ -15,7 +19,7 @@ def build_monitoring_metrics(periode_mulai, periode_selesai):
     end = timezone.make_aware(datetime.combine(periode_selesai, time.max))
     conversations = PercakapanChatbot.objects.filter(dibuat_pada__range=(start, end))
     tests = UjiCobaPengguna.objects.filter(dibuat_pada__range=(start, end))
-    checks = CekMerekLog.objects.filter(dibuat_pada__range=(start, end))
+    checks = KlasifikasiMerekLog.objects.filter(dibuat_pada__range=(start, end))
     now = timezone.now()
     overdue = conversations.filter(
         dieskalasi=True,
@@ -30,6 +34,7 @@ def build_monitoring_metrics(periode_mulai, periode_selesai):
         'layanan': {
             'chatbot': conversations.count(),
             'cek_merek': checks.count(),
+            'klasifikasi_merek': checks.count(),
             'eskalasi': conversations.filter(dieskalasi=True).count(),
             'eskalasi_selesai': conversations.filter(
                 status_tindak_lanjut=PercakapanChatbot.StatusTindakLanjut.SELESAI,

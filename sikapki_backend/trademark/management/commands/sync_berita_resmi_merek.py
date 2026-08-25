@@ -5,6 +5,8 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 from django.utils import timezone
 
+from core.jobs import enqueue_job
+from core.models import BackgroundJob
 from trademark.models import MirrorPDKI, SinkronisasiPDKILog
 from trademark.pdki_sync import (
     PDKISyncError,
@@ -36,6 +38,17 @@ class Command(BaseCommand):
             '--without-labels', action='store_true',
             help='Sinkronkan data tekstual saja tanpa mengekstrak etiket.',
         )
+        parser.add_argument(
+            '--enrich-details', action='store_true',
+            help=(
+                'Proses publikasi yang uraian barang/jasanya masih kosong. '
+                'Gunakan --batch-size untuk membatasi satu eksekusi.'
+            ),
+        )
+        parser.add_argument(
+            '--enqueue', action='store_true',
+            help='Masukkan pekerjaan pengayaan ke worker tanpa mengunduh PDF pada request ini.',
+        )
 
     def handle(self, *args, **options):
         stale_limit = timezone.now() - timedelta(hours=2)
@@ -53,6 +66,12 @@ class Command(BaseCommand):
                 f'{stale_count} log sinkronisasi stale ditandai gagal agar dapat diproses ulang.',
             ))
         limit = options['limit']
+        if options['enqueue'] and not options['enrich_details']:
+            raise CommandError('--enqueue hanya dapat digunakan bersama --enrich-details.')
+        if options['enrich_details'] and (options['all'] or options['url'] or options['dry_run']):
+            raise CommandError(
+                '--enrich-details tidak dapat digabungkan dengan --all, --url, atau --dry-run.',
+            )
         if not options['all'] and (limit < 1 or limit > 20):
             raise CommandError('--limit harus antara 1 dan 20 untuk menjaga beban sumber resmi.')
         if options['all'] and options['url']:
@@ -69,8 +88,49 @@ class Command(BaseCommand):
         if options['delay'] < 0 or options['delay'] > 30:
             raise CommandError('--delay harus antara 0 dan 30 detik.')
         try:
-            discovery_limit = 100_000 if options['all'] else limit
-            urls = [options['url']] if options['url'] else discover_bulletin_urls(limit=discovery_limit)
+            if options['enrich_details']:
+                enriched_urls = SinkronisasiPDKILog.objects.filter(
+                    status=SinkronisasiPDKILog.Status.BERHASIL,
+                    pesan__contains='detail uraian dibaca',
+                ).values_list('sumber_url', flat=True)
+                urls = list(
+                    MirrorPDKI.objects.filter(
+                        sumber_data=MirrorPDKI.SumberData.BRM_DJKI,
+                        uraian_barang_jasa='',
+                    ).exclude(sumber_data_url='').exclude(
+                        sumber_data_url__in=enriched_urls,
+                    ).values_list(
+                        'sumber_data_url', flat=True,
+                    ).distinct()[:options['batch_size']]
+                )
+                self.stdout.write(
+                    f'Batch pengayaan detail: {len(urls)} publikasi; etiket tidak diproses ulang.',
+                )
+                if not urls:
+                    self.stdout.write(self.style.SUCCESS(
+                        'Seluruh data BRM yang ditemukan sudah memiliki uraian barang/jasa.',
+                    ))
+                    return
+                if options['enqueue']:
+                    created = 0
+                    pending = list(BackgroundJob.objects.filter(
+                        kind=BackgroundJob.Kind.BRM_ENRICH,
+                        status__in=[BackgroundJob.Status.QUEUED, BackgroundJob.Status.RUNNING],
+                    ).only('payload'))
+                    for url in urls:
+                        if any((job.payload or {}).get('url') == url for job in pending):
+                            continue
+                        enqueue_job(BackgroundJob.Kind.BRM_ENRICH, {'url': url})
+                        created += 1
+                    self.stdout.write(self.style.SUCCESS(
+                        f'{created} job pengayaan BRM masuk antrean background worker.',
+                    ))
+                    return
+            else:
+                discovery_limit = 100_000 if options['all'] else limit
+                urls = [options['url']] if options['url'] else discover_bulletin_urls(
+                    limit=discovery_limit,
+                )
             if options['all'] and not options['force']:
                 completed_urls = set(SinkronisasiPDKILog.objects.filter(
                     status=SinkronisasiPDKILog.Status.BERHASIL,
@@ -107,12 +167,17 @@ class Command(BaseCommand):
                     labels_complete = options['without_labels'] or not labels_missing
                     if (
                         previous and previous.status == SinkronisasiPDKILog.Status.BERHASIL
-                        and labels_complete and not options['force']
+                        and labels_complete
+                        and not (options['force'] or options['enrich_details'])
                     ):
                         self.stdout.write(f'Dilewati (sudah tersinkron): {previous.judul_sumber or url}')
                         continue
                     log = sync_bulletin(
-                        url, force=options['force'], include_labels=not options['without_labels'],
+                        url,
+                        force=options['force'] or options['enrich_details'],
+                        include_labels=not (
+                            options['without_labels'] or options['enrich_details']
+                        ),
                     )
                     self.stdout.write(self.style.SUCCESS(
                         f'{log.judul_sumber}: {log.jumlah_ditemukan} permohonan, '
@@ -121,7 +186,10 @@ class Command(BaseCommand):
                 except Exception as exc:
                     failures.append(f'{url}: {exc}')
                     self.stderr.write(self.style.ERROR(f'Gagal memproses {url}: {exc}'))
-                if options['all'] and index < len(urls) - 1 and options['delay']:
+                if (
+                    (options['all'] or options['enrich_details'])
+                    and index < len(urls) - 1 and options['delay']
+                ):
                     time.sleep(options['delay'])
             if failures:
                 raise CommandError(
