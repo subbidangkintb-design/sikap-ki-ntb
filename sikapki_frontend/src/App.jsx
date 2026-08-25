@@ -9,6 +9,7 @@ import ChecklistPage from './pages/ChecklistPage.jsx'
 import InformationCenterPage from './pages/InformationCenterPage.jsx'
 import UserTestingPage from './pages/UserTestingPage.jsx'
 import ConsultationStatusPage from './pages/ConsultationStatusPage.jsx'
+import ServiceStatusPage from './pages/ServiceStatusPage.jsx'
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/informasi" element={<InformationCenterPage />} />
         <Route path="/uji-coba" element={<UserTestingPage />} />
         <Route path="/status-konsultasi/:pelacakanId" element={<ConsultationStatusPage />} />
+        <Route path="/status-layanan" element={<ServiceStatusPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

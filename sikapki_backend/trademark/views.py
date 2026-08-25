@@ -12,6 +12,7 @@ from chatbot.ai_client import AIProviderError
 from chatbot.models import PercakapanChatbot
 from core.jobs import enqueue_job
 from core.models import BackgroundJob
+from core.models import PortalConfiguration
 from core.permissions import IsSIKAPStaff
 
 from .models import CekMerekLog, KlasifikasiMerekLog, MirrorPDKI
@@ -115,8 +116,9 @@ class CekMerekAIViewSet(viewsets.ViewSet):
 
     def fitur(self, request):
         """Konfigurasi publik non-sensitif untuk mengatur tampilan fitur."""
+        config = PortalConfiguration.current()
         return Response({
-            'ai_cek_merek_aktif': settings.AI_TRADEMARK_CHECK_ENABLED,
+            'ai_cek_merek_aktif': config.ai_cek_merek_aktif if config else settings.AI_TRADEMARK_CHECK_ENABLED,
         })
 
     def eskalasi_kelas(self, request):
@@ -137,6 +139,7 @@ class CekMerekAIViewSet(viewsets.ViewSet):
         )
         percakapan = PercakapanChatbot.objects.create(
             sesi_id=sesi_id or uuid.uuid4(),
+            email_pengguna=data.get('email_pengguna', ''),
             pertanyaan=pertanyaan,
             jawaban=(
                 'Permintaan Anda sudah diteruskan kepada Petugas Helpdesk KI. '
@@ -250,7 +253,9 @@ class CekMerekAIViewSet(viewsets.ViewSet):
 
     def cek_kemiripan(self, request):
         """Fitur opsional penelusuran awal terhadap data pembanding lokal."""
-        if not settings.AI_TRADEMARK_CHECK_ENABLED:
+        config = PortalConfiguration.current()
+        similarity_enabled = config.ai_cek_merek_aktif if config else settings.AI_TRADEMARK_CHECK_ENABLED
+        if not similarity_enabled:
             return Response(
                 {'detail': 'Fitur AI Cek Merek sedang dinonaktifkan.'},
                 status=status.HTTP_404_NOT_FOUND,

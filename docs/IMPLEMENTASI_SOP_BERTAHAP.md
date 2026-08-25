@@ -1,11 +1,11 @@
-# Implementasi SOP SIKAP-KI NTB Bertahap
+﻿# Implementasi SOP SIKAP-KI NTB Bertahap
 
 Dokumen ini menjadi peta penerapan aplikasi terhadap **SOP Pengelolaan dan
 Penggunaan SIKAP-KI NTB versi 1.0**. Isi SOP adalah standar operasional; kolom
 status di bawah menunjukkan implementasi teknis saat ini, bukan pengesahan
 administratif SOP.
 
-## Tahap 1 — Alur Cek Kelas dan human oversight
+## Tahap 1 - Alur Cek Kelas dan human oversight
 
 Status: **diterapkan dan diuji**.
 
@@ -28,7 +28,7 @@ POST /api/trademark/cek-kelas/eskalasi/
 GET  /api/chatbot/status/<pelacakan_id>/
 ```
 
-## Tahap 2 — Chatbot Helpdesk dan tindak lanjut petugas
+## Tahap 2 - Chatbot Helpdesk dan tindak lanjut petugas
 
 Status: **fondasi sudah tersedia; perlu uji operasional petugas**.
 
@@ -42,10 +42,10 @@ Uji berikutnya bersama petugas:
 2. Pertanyaan lanjutan dalam sesi yang sama.
 3. Jawaban tanpa sumber memadai.
 4. Permintaan bantuan petugas.
-5. Perubahan status Menunggu → Diproses → Selesai.
+5. Perubahan status Menunggu -> Diproses -> Selesai.
 6. Koreksi jawaban dan pencatatan sumber koreksi.
 
-## Tahap 3 — Basis pengetahuan dan klasifikasi
+## Tahap 3 - Basis pengetahuan dan klasifikasi
 
 Status: **fondasi teknis tersedia; validasi substansi harus dilakukan petugas**.
 
@@ -65,7 +65,7 @@ Yang perlu ditetapkan oleh Pengelola Basis Pengetahuan:
 - jadwal peninjauan/pembaruan;
 - prosedur penonaktifan sumber yang tidak berlaku.
 
-## Tahap 4 — Akun, keamanan, backup, dan gangguan
+## Tahap 4 - Akun, keamanan, backup, dan gangguan
 
 Status: **sebagian tersedia; perlu pengesahan konfigurasi operasional**.
 
@@ -82,7 +82,7 @@ Sebelum go-live, tetapkan dan uji:
 - target pemulihan layanan;
 - prosedur pergantian kredensial dan penonaktifan akun.
 
-## Tahap 5 — Monitoring dan evaluasi
+## Tahap 5 - Monitoring dan evaluasi
 
 Status: **dashboard dan metrik fondasi tersedia; format laporan perlu ditetapkan**.
 
@@ -109,3 +109,5 @@ menebak nilai tersebut. Sebelum penetapan resmi, lengkapi minimal:
 - target respons awal dan penyelesaian konsultasi;
 - kanal alternatif Helpdesk saat aplikasi terganggu;
 - periode laporan monitoring dan penerima laporan.
+
+

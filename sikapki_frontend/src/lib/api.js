@@ -111,6 +111,10 @@ export function getStatusKonsultasi(pelacakanId) {
   return request(`/api/chatbot/status/${encodeURIComponent(pelacakanId)}/`)
 }
 
+export function getStatusLayanan() {
+  return request('/api/core/health/')
+}
+
 export function getStatistikLayanan(days = 7) {
   return request(`/api/core/statistik-layanan/?days=${encodeURIComponent(days)}`)
 }

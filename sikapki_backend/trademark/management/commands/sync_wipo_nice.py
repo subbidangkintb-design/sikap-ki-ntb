@@ -16,7 +16,10 @@ VERSION = 'NCL13-2026'
 DATE_IN_FORCE = date(2026, 1, 1)
 BASE_DOWNLOAD = 'https://www.wipo.int/classifications/data/nice/ITSupport_and_download_area/20260101/MasterFiles'
 STRUCTURE_URL = f'{BASE_DOWNLOAD}/ncl-20260101-classification_top_structure-20250610.zip'
-TEXTS_URL = f'{BASE_DOWNLOAD}/ncl-20260101-classification_texts-20251212.zip'
+# WIPO periodically republishes the master text archive.  The original
+# 2025-12-12 filename was removed from the 2026 directory; keep this aligned
+# with the currently published NCL(13-2026) archive.
+TEXTS_URL = f'{BASE_DOWNLOAD}/ncl-20260101-classification_texts-20260715.zip'
 WIPO_CLASS_URL = (
     'https://nclpub.wipo.int/enfr/?basic_numbers=show&class_number={class_number}'
     '&lang=en&menulang=en&mode=flat&notion=&pagination=no&version=20260101'

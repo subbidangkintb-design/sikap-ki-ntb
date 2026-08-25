@@ -1,4 +1,4 @@
-# Protokol Uji Coba Pengguna SIKAP-KI NTB
+﻿# Protokol Uji Coba Pengguna SIKAP-KI NTB
 
 ## Tujuan dan target
 
@@ -29,3 +29,4 @@ Hasil agregat tampil pada menu Statistik dan data rinci anonim tersedia di Admin
 ## Tindak lanjut
 
 Kelompokkan temuan menjadi kritis, tinggi, sedang, dan rendah. Temuan kritis menghentikan pilot sampai diperbaiki; temuan tinggi harus memiliki tenggat sebelum putaran berikutnya. Simpan berita acara, daftar peserta anonim, tangkapan layar dashboard, dan snapshot monitoring sebagai eviden proyek.
+

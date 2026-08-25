@@ -1,4 +1,4 @@
-"""
+﻿"""
 Django settings for sikapki project.
 
 Semua nilai sensitif (SECRET_KEY, credential database, dsb) diambil dari
@@ -86,7 +86,7 @@ WSGI_APPLICATION = 'sikapki.wsgi.application'
 ASGI_APPLICATION = 'sikapki.asgi.application'
 
 # ---------------------------------------------------------------------------
-# Database — PostgreSQL, dikonfigurasi lewat DATABASE_URL di .env
+# Database - PostgreSQL, dikonfigurasi lewat DATABASE_URL di .env
 # Contoh: postgres://USER:PASSWORD@HOST:PORT/NAME
 # ---------------------------------------------------------------------------
 DATABASES = {
@@ -107,7 +107,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # ---------------------------------------------------------------------------
 LANGUAGE_CODE = 'id'
-TIME_ZONE = 'Asia/Makassar'  # WITA — sesuai lokasi Kanwil Kementerian Hukum NTB
+TIME_ZONE = 'Asia/Makassar'  # WITA - sesuai lokasi Kanwil Kementerian Hukum NTB
 USE_I18N = True
 USE_TZ = True
 
@@ -195,17 +195,25 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool('SECURE_HSTS_INCLUDE_SUBDOMAINS', defa
 SECURE_HSTS_PRELOAD = env.bool('SECURE_HSTS_PRELOAD', default=False)
 
 # ---------------------------------------------------------------------------
-# CORS — supaya frontend React (port terpisah, mis. 5173/3000) bisa akses API
+# CORS - supaya frontend React (port terpisah, mis. 5173/3000) bisa akses API
 # ---------------------------------------------------------------------------
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     'http://localhost:3000',
     'http://localhost:5173',
 ])
 
-# Diperlukan karena kita pakai SessionAuthentication (cookie-based) —
+# Diperlukan karena kita pakai SessionAuthentication (cookie-based) -
 # supaya browser mengirim cookie session saat frontend React (origin
 # berbeda) memanggil API ini.
 CORS_ALLOW_CREDENTIALS = True
+
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = env('EMAIL_HOST', default='localhost')
+EMAIL_PORT = env.int('EMAIL_PORT', default=25)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=False)
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='SIKAP-KI NTB <no-reply@sikapki.ntb>')
 
 # Django >= 4 mewajibkan origin frontend juga didaftarkan sebagai trusted
 # origin untuk proteksi CSRF pada request non-GET (POST/PUT/DELETE, dst).
@@ -242,3 +250,5 @@ DEEPSEEK_API_KEY = env('DEEPSEEK_API_KEY', default='')
 DEEPSEEK_BASE_URL = env('DEEPSEEK_BASE_URL', default='https://api.deepseek.com')
 DJKI_REQUEST_RETRIES = env.int('DJKI_REQUEST_RETRIES', default=3)
 DJKI_RETRY_BACKOFF_SECONDS = env.float('DJKI_RETRY_BACKOFF_SECONDS', default=2.0)
+
+

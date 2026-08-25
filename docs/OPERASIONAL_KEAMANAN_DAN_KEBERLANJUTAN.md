@@ -1,4 +1,4 @@
-# Operasional, Keamanan, dan Keberlanjutan SIKAP-KI NTB
+﻿# Operasional, Keamanan, dan Keberlanjutan SIKAP-KI NTB
 
 ## Pembagian peran
 
@@ -81,3 +81,4 @@ FAQ hasil sinkronisasi menyimpan URL sumber, hash konten, subkategori, dan waktu
 sinkronisasi. Perubahan pada jawaban sumber otomatis mengembalikan FAQ menjadi
 draf dan mencabut indeks lamanya. Jika FAQ bertentangan dengan peraturan resmi
 yang lebih baru, dokumen peraturan terverifikasi harus diutamakan.
+

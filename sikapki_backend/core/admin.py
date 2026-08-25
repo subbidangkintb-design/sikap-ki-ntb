@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.http import HttpResponse
 from django.utils.html import format_html
 
-from .models import AdminAuditLog, MonitoringSnapshot, SlaNotification, UjiCobaPengguna, UserProfile
+from .models import AdminAuditLog, MonitoringSnapshot, PortalConfiguration, SlaNotification, UjiCobaPengguna, UserProfile
 from .monitoring import build_monitoring_metrics
 
 
@@ -13,6 +13,21 @@ class UserProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'role', 'jabatan', 'unit_kerja', 'created_at')
     list_filter = ('role',)
     search_fields = ('user__username', 'user__email', 'jabatan')
+
+
+@admin.register(PortalConfiguration)
+class PortalConfigurationAdmin(admin.ModelAdmin):
+    list_display = ('ai_cek_merek_aktif', 'diperbarui_oleh', 'diperbarui_pada')
+    readonly_fields = ('diperbarui_oleh', 'diperbarui_pada')
+    fields = ('ai_cek_merek_aktif', 'diperbarui_oleh', 'diperbarui_pada')
+
+    def has_add_permission(self, request):
+        return not PortalConfiguration.objects.exists()
+
+    def save_model(self, request, obj, form, change):
+        obj.id = 1
+        obj.diperbarui_oleh = request.user
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(UjiCobaPengguna)

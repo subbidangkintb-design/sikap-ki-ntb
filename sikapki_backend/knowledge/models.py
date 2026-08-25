@@ -1,4 +1,4 @@
-from django.conf import settings
+﻿from django.conf import settings
 from django.db import models
 
 
@@ -88,7 +88,7 @@ class DokumenResmi(models.Model):
 class ChunkEmbedding(models.Model):
     """
     Metadata potongan (chunk) teks dari sebuah DokumenResmi yang sudah
-    di-embed. Vector embedding-nya SENDIRI TIDAK disimpan di sini —
+    di-embed. Vector embedding-nya SENDIRI TIDAK disimpan di sini â€”
     hanya `vector_id` yang menunjuk ke record aslinya di ChromaDB.
     Postgres di sini berfungsi sebagai "index"/metadata store, bukan
     vector store.
@@ -116,7 +116,7 @@ class ChunkEmbedding(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.dokumen.judul} — chunk #{self.urutan}'
+        return f'{self.dokumen.judul} â€” chunk #{self.urutan}'
 
 
 class FAQ(models.Model):
@@ -209,3 +209,4 @@ class SinkronisasiFAQLog(models.Model):
 
     def __str__(self):
         return f'{self.get_status_display()} - {self.dimulai_pada:%d/%m/%Y %H:%M}'
+

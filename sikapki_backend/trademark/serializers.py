@@ -48,6 +48,7 @@ class EskalasiKelasSerializer(serializers.Serializer):
     nama_merek = serializers.CharField(max_length=255, required=False, allow_blank=True)
     deskripsi_produk = serializers.CharField(max_length=4000, trim_whitespace=True)
     sesi_id = serializers.UUIDField(required=False)
+    email_pengguna = serializers.EmailField(required=False, allow_blank=True)
     rekomendasi_kelas = serializers.ListField(
         child=serializers.DictField(), required=False, default=list,
     )

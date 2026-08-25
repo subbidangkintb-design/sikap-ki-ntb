@@ -1,5 +1,7 @@
 from django import forms
 from django.contrib import admin
+from django.conf import settings
+from django.core.mail import send_mail
 from django.db import models
 from django.utils import timezone
 from django.utils.html import format_html
@@ -27,7 +29,7 @@ class PercakapanChatbotAdmin(admin.ModelAdmin):
     list_filter = ('status_tindak_lanjut', 'prioritas', 'dieskalasi', 'rating_membantu', 'dibuat_pada')
     search_fields = ('pertanyaan', 'jawaban', 'catatan_tindak_lanjut', 'jawaban_koreksi')
     readonly_fields = (
-        'sesi_id', 'pelacakan_id', 'pertanyaan', 'jawaban', 'sumber_dokumen', 'confidence_score',
+            'sesi_id', 'pelacakan_id', 'email_pengguna', 'pertanyaan', 'jawaban', 'sumber_dokumen', 'confidence_score',
         'dieskalasi', 'rating_membantu', 'dibuat_pada', 'ditinjau_pada',
         'diselesaikan_pada', 'dikoreksi_oleh', 'dikoreksi_pada',
     )
@@ -39,7 +41,7 @@ class PercakapanChatbotAdmin(admin.ModelAdmin):
     actions = ('tandai_diproses', 'tandai_selesai')
     fieldsets = (
         ('Pertanyaan dan jawaban sistem', {
-            'fields': ('sesi_id', 'pertanyaan', 'jawaban', 'rating_membantu', 'dibuat_pada'),
+            'fields': ('sesi_id', 'email_pengguna', 'pertanyaan', 'jawaban', 'rating_membantu', 'dibuat_pada'),
             'description': 'Data asli interaksi tidak dapat diubah agar riwayat layanan tetap utuh.',
         }),
         ('Tindak lanjut petugas', {'fields': (
@@ -139,6 +141,17 @@ class PercakapanChatbotAdmin(admin.ModelAdmin):
                     f'{obj.catatan_tindak_lanjut}'.strip()
                 ),
             )
+            if 'status_tindak_lanjut' in form.changed_data and obj.email_pengguna:
+                send_mail(
+                    subject='Pembaruan konsultasi SIKAP-KI NTB',
+                    message=(
+                        f'Status konsultasi Anda kini: {obj.get_status_tindak_lanjut_display()}. '
+                        f'Gunakan nomor pelacakan {obj.pelacakan_id} untuk memantau layanan.'
+                    ),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[obj.email_pengguna],
+                    fail_silently=True,
+                )
 
     @admin.action(description='Tandai konsultasi diproses oleh saya')
     def tandai_diproses(self, request, queryset):

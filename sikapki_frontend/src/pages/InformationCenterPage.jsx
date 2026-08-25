@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { ArrowRight, BookOpen, ExternalLink, FileQuestion, Landmark, Lightbulb, Loader2, Search, ShieldCheck } from 'lucide-react'
 import PageHeader from '../components/PageHeader.jsx'
 import StatusNotice from '../components/StatusNotice.jsx'
@@ -6,10 +6,10 @@ import { getFaq, unwrapResults } from '../lib/api.js'
 import { HELPDESK_PHONE_DISPLAY, HELPDESK_WHATSAPP_URL, OFFICIAL_LINKS } from '../config/service.js'
 
 const serviceCards = [
-  { title: 'Merek', text: 'Pelindungan tanda pembeda untuk barang dan/atau jasa.', href: OFFICIAL_LINKS.merek, icon: ShieldCheck },
-  { title: 'Hak Cipta', text: 'Informasi pencatatan ciptaan dan produk hak terkait.', href: OFFICIAL_LINKS.hakCipta, icon: BookOpen },
-  { title: 'Paten', text: 'Pelindungan invensi melalui dokumen teknis dan klaim.', href: OFFICIAL_LINKS.paten, icon: Lightbulb },
-  { title: 'Desain Industri', text: 'Pelindungan tampilan estetis suatu produk.', href: OFFICIAL_LINKS.desainIndustri, icon: Landmark },
+  { title: 'Merek', text: 'Pelindungan tanda pembeda untuk barang dan/atau jasa.', href: OFFICIAL_LINKS.merek, icon: ShieldCheck, updated: '25 Agustus 2026' },
+  { title: 'Hak Cipta', text: 'Informasi pencatatan ciptaan dan produk hak terkait.', href: OFFICIAL_LINKS.hakCipta, icon: BookOpen, updated: '25 Agustus 2026' },
+  { title: 'Paten', text: 'Pelindungan invensi melalui dokumen teknis dan klaim.', href: OFFICIAL_LINKS.paten, icon: Lightbulb, updated: '25 Agustus 2026' },
+  { title: 'Desain Industri', text: 'Pelindungan tampilan estetis suatu produk.', href: OFFICIAL_LINKS.desainIndustri, icon: Landmark, updated: '25 Agustus 2026' },
 ]
 
 export default function InformationCenterPage() {
@@ -39,11 +39,12 @@ export default function InformationCenterPage() {
       />
       <section className="mx-auto max-w-7xl space-y-10 px-4 py-10">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {serviceCards.map(({ title, text, href, icon: Icon }) => (
+          {serviceCards.map(({ title, text, href, icon: Icon, updated }) => (
             <a key={title} href={href} target="_blank" rel="noreferrer" className="group rounded-2xl border border-gov-line bg-white p-5 shadow-soft transition hover:-translate-y-1 hover:border-gov-blue hover:shadow-ministry">
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-gov-blue group-hover:bg-gov-blue group-hover:text-white"><Icon size={24} /></span>
               <h2 className="mt-5 text-xl font-black text-gov-navy">{title}</h2>
               <p className="mt-2 min-h-12 text-sm leading-6 text-slate-600">{text}</p>
+              <p className="mt-2 text-xs text-slate-500">Diperbarui: {updated}</p>
               <span className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold text-gov-blue">Informasi DJKI <ExternalLink size={15} /></span>
             </a>
           ))}
@@ -62,8 +63,8 @@ export default function InformationCenterPage() {
             <div className="flex items-center justify-center border-t border-white/10 bg-white/5 p-8 lg:border-l lg:border-t-0">
               <div className="text-center">
                 <p className="text-sm font-bold uppercase tracking-widest text-blue-200">Jam layanan</p>
-                <p className="mt-3 text-2xl font-black">Senin–Jumat</p>
-                <p className="mt-1 text-blue-100">08.00–16.00 WITA</p>
+                <p className="mt-3 text-2xl font-black">Senin-Jumat</p>
+                <p className="mt-1 text-blue-100">08.00-16.00 WITA</p>
               </div>
             </div>
           </div>
@@ -110,3 +111,4 @@ function formatDate(value) {
   if (!value) return 'belum tercatat'
   return new Date(value).toLocaleDateString('id-ID', { timeZone: 'Asia/Makassar', year: 'numeric', month: 'short', day: 'numeric' })
 }
+

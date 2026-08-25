@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import {
   ArrowUp, BarChart3, BotMessageSquare, Clock3, ClipboardCheck, ExternalLink,
@@ -27,6 +27,7 @@ const footerServices = [
   { to: '/informasi', label: 'Pusat informasi' },
   { to: '/statistik', label: 'Statistik layanan' },
   { to: '/uji-coba', label: 'Evaluasi pengalaman pengguna' },
+  { to: '/status-layanan', label: 'Status layanan' },
 ]
 
 const officialServices = [
@@ -184,8 +185,8 @@ export default function Layout({ children }) {
         <div className="border-t border-white/10">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-5 text-xs text-blue-200 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p>© {new Date().getFullYear()} Kantor Wilayah Kementerian Hukum Nusa Tenggara Barat.</p>
-              <p className="mt-1">Data klasifikasi: © WIPO, Nice Classification NCL 13-2026.</p>
+              <p>(c) {new Date().getFullYear()} Kantor Wilayah Kementerian Hukum Nusa Tenggara Barat.</p>
+              <p className="mt-1">Data klasifikasi: (c) WIPO, Nice Classification NCL 13-2026.</p>
             </div>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
               <a href={OFFICIAL_LINKS.kontak} target="_blank" rel="noreferrer" className="hover:text-white hover:underline">Kontak resmi</a>
@@ -198,3 +199,4 @@ export default function Layout({ children }) {
     </div>
   )
 }
+

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   BookOpenCheck, CircleHelp, ExternalLink, ImagePlus, Info,
@@ -27,6 +27,7 @@ export default function CekMerekPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isEscalating, setIsEscalating] = useState(false)
   const [escalation, setEscalation] = useState(null)
+  const [emailPengguna, setEmailPengguna] = useState('')
   const nameInputRef = useRef(null)
   const descriptionInputRef = useRef(null)
   const feedbackRef = useRef(null)
@@ -103,6 +104,7 @@ export default function CekMerekPage() {
       const response = await eskalasiKelasMerek({
         nama_merek: form.nama_merek.trim(),
         deskripsi_produk: form.deskripsi_produk.trim(),
+        email_pengguna: emailPengguna.trim(),
         rekomendasi_kelas: result.rekomendasi_kelas || [],
       })
       setEscalation(response)
@@ -385,6 +387,8 @@ function ClassificationResult({ result, additionalDetail, onAdditionalDetailChan
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
         <p className="font-black text-amber-950">Masih ragu dengan kelas atau uraian?</p>
         <p className="mt-1 text-sm leading-6 text-amber-900">Sesuai SOP, hasil ini dapat diteruskan kepada Petugas Helpdesk KI untuk ditinjau. Petugas memberi arahan awal berdasarkan sumber resmi, bukan keputusan pemeriksaan DJKI.</p>
+        <label htmlFor="email-konsultasi" className="mt-3 block text-sm font-bold text-amber-950">Email untuk menerima pembaruan (opsional)</label>
+        <input id="email-konsultasi" type="email" value={emailPengguna} onChange={(event) => setEmailPengguna(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-amber-300 bg-white px-3 text-sm outline-none focus:border-gov-teal focus:ring-2 focus:ring-gov-mint" placeholder="nama@contoh.go.id" />
         <button type="button" onClick={onEscalate} disabled={isEscalating || Boolean(escalation)} className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-amber-700 px-4 text-sm font-black text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-60">
           {isEscalating ? <Loader2 className="animate-spin" size={18} /> : <MessageCircle size={18} />}
           {escalation ? 'Sudah diteruskan ke petugas' : 'Minta bantuan Petugas Helpdesk KI'}
@@ -393,7 +397,7 @@ function ClassificationResult({ result, additionalDetail, onAdditionalDetailChan
           <div className="mt-3 rounded-lg border border-amber-300 bg-white p-3 text-sm text-amber-950">
             <p className="font-black">Nomor konsultasi: {escalation.kode_konsultasi}</p>
             <p className="mt-1">Status: {escalation.status_label}</p>
-            <Link to={`/status-konsultasi/${escalation.pelacakan_id}`} className="mt-2 inline-flex font-bold text-gov-blue hover:underline">Pantau tindak lanjut petugas →</Link>
+            <Link to={`/status-konsultasi/${escalation.pelacakan_id}`} className="mt-2 inline-flex font-bold text-gov-blue hover:underline">Pantau tindak lanjut petugas -&gt;</Link>
           </div>
         ) : null}
       </div>
@@ -583,3 +587,5 @@ function ClassRecommendation({ option, rank }) {
     </article>
   )
 }
+
+

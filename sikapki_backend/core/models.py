@@ -1,4 +1,4 @@
-from django.conf import settings
+﻿from django.conf import settings
 from django.db import models
 from django.utils import timezone
 import uuid
@@ -39,6 +39,32 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f'{self.user.username} ({self.get_role_display()})'
+
+
+class PortalConfiguration(models.Model):
+    """Pengaturan fitur publik yang dapat diubah admin tanpa redeploy."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    ai_cek_merek_aktif = models.BooleanField(
+        default=False,
+        help_text='Aktifkan hanya jika data pembanding dan prosedur peninjauan sudah siap.',
+    )
+    diperbarui_oleh = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='konfigurasi_portal_diperbarui', editable=False,
+    )
+    diperbarui_pada = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Konfigurasi Portal'
+        verbose_name_plural = 'Konfigurasi Portal'
+
+    def __str__(self):
+        return 'Pengaturan fitur SIKAP-KI NTB'
+
+    @classmethod
+    def current(cls):
+        return cls.objects.first()
 
 
 class UjiCobaPengguna(models.Model):
@@ -146,7 +172,7 @@ class BackgroundJob(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.get_kind_display()} — {self.get_status_display()} ({self.job_id})'
+        return f'{self.get_kind_display()} - {self.get_status_display()} ({self.job_id})'
 
 
 class AdminAuditLog(models.Model):
@@ -250,7 +276,7 @@ class _BackgroundJobDuplicate(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.get_kind_display()} — {self.get_status_display()} ({self.job_id})'
+        return f'{self.get_kind_display()} - {self.get_status_display()} ({self.job_id})'
 
 
 class _AdminAuditLogDuplicate(models.Model):
@@ -284,3 +310,5 @@ class _AdminAuditLogDuplicate(models.Model):
 
     def __str__(self):
         return f'{self.get_action_display()} {self.model_label} #{self.object_id}'
+
+

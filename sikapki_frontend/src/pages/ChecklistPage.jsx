@@ -66,6 +66,8 @@ const services = {
 
 function item(id, label, audiences = ['all']) { return { id, label, audiences } }
 
+const CHECKLIST_UPDATED = '25 Agustus 2026'
+
 export default function ChecklistPage() {
   const [active, setActive] = useState('merek')
   const [applicant, setApplicant] = useState('perorangan')
@@ -112,7 +114,7 @@ export default function ChecklistPage() {
               <div className="mt-5 h-3 overflow-hidden rounded-full bg-white/15 print:hidden"><div className="h-full rounded-full bg-gov-gold" style={{ width: `${progress}%` }} /></div>
               <p className="mt-4 text-sm leading-6 text-blue-100 print:text-black">{completed} dari {visibleItems.length} dokumen telah dicentang untuk {applicantTypes[applicant].toLowerCase()}.</p>
               <p className="mt-5 rounded-xl border border-white/15 bg-white/10 p-4 text-sm leading-6 text-blue-50 print:border-slate-300 print:bg-white print:text-black">{service.note}</p>
-              <a href={service.source} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 font-bold text-gov-gold print:text-black">Sumber resmi DJKI <ExternalLink size={17} /></a>
+              <div className="mt-5 space-y-2 text-sm"><a href={service.source} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 font-bold text-gov-gold print:text-black">Sumber resmi DJKI <ExternalLink size={17} /></a><p className="text-xs text-blue-100 print:text-black">Terakhir diperbarui: {CHECKLIST_UPDATED}</p></div>
             </aside>
 
             <div>

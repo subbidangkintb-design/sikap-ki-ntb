@@ -1,16 +1,16 @@
-# SIKAP-KI NTB — Backend
+﻿# SIKAP-KI NTB - Backend
 
 Prototipe pendukung transformasi tata kelola layanan informasi dan konsultasi awal Kekayaan Intelektual pada Kantor Wilayah Kementerian Hukum Nusa Tenggara Barat. Artificial Intelligence digunakan sebagai teknologi pendukung, bukan pengganti petugas atau pemeriksaan resmi DJKI.
 Backend dibangun dengan Django 5 + Django REST Framework, PostgreSQL, dan
 disiapkan untuk konsumsi oleh frontend React terpisah.
 
-> ⚠️ Catatan: kode ini dibuat di lingkungan sandbox tanpa akses internet dan
+> âš ï¸ Catatan: kode ini dibuat di lingkungan sandbox tanpa akses internet dan
 > tanpa server PostgreSQL, sehingga `pip install`, `migrate`, dan `runserver`
 > belum bisa dieksekusi langsung di sana. Semua file sudah dicek sintaksnya
 > (`py_compile`) dan direview manual, tapi **jalankan langkah-langkah di
 > bawah ini di mesin kamu sendiri** untuk memverifikasi end-to-end.
 
-> ⚠️ **Jika kamu sudah pernah menjalankan `makemigrations` sebelumnya**
+> âš ï¸ **Jika kamu sudah pernah menjalankan `makemigrations` sebelumnya**
 > (dengan skema model versi lama), hapus dulu file migrasi lama sebelum
 > lanjut, karena skema model `knowledge`, `trademark`, dan `chatbot` sudah
 > dirombak total mengikuti desain database di proposal:
@@ -23,45 +23,45 @@ disiapkan untuk konsumsi oleh frontend React terpisah.
 
 ```
 sikapki_backend/
-├── manage.py                # entry point perintah Django (runserver, migrate, dst)
-├── requirements.txt          # daftar dependency Python
-├── .env.example               # template environment variable (copy jadi .env)
-├── .gitignore
-├── sikapki/                  # folder KONFIGURASI project (bukan "app")
-│   ├── settings.py           # semua konfigurasi Django (baca dari .env)
-│   ├── urls.py               # routing utama, include urls tiap app
-│   ├── wsgi.py / asgi.py     # entry point untuk deployment
-│
-├── core/                     # APP: user & autentikasi admin
-│   ├── models.py             # UserProfile (role: superadmin/petugas/verifikator)
-│   ├── admin.py              # tampilan di Django Admin
-│   ├── serializers.py        # konversi model <-> JSON untuk API
-│   ├── views.py              # endpoint /api/core/me/ (data user login)
-│   └── urls.py
-│
-├── knowledge/                # APP: sumber data untuk RAG chatbot
-│   ├── models.py             # KategoriKI, DokumenResmi, ChunkEmbedding, FAQ
-│   ├── admin.py / serializers.py / views.py / urls.py
-│
-├── trademark/                # APP: mirror data PDKI & log cek merek
-│   ├── models.py             # MirrorPDKI, CekMerekLog
-│   ├── admin.py / serializers.py / views.py / urls.py
-│
-├── chatbot/                  # APP: log percakapan chatbot
-│   ├── models.py             # PercakapanChatbot
-│   ├── admin.py / serializers.py / views.py / urls.py
+â”œâ”€â”€ manage.py                # entry point perintah Django (runserver, migrate, dst)
+â”œâ”€â”€ requirements.txt          # daftar dependency Python
+â”œâ”€â”€ .env.example               # template environment variable (copy jadi .env)
+â”œâ”€â”€ .gitignore
+â”œâ”€â”€ sikapki/                  # folder KONFIGURASI project (bukan "app")
+â”‚   â”œâ”€â”€ settings.py           # semua konfigurasi Django (baca dari .env)
+â”‚   â”œâ”€â”€ urls.py               # routing utama, include urls tiap app
+â”‚   â”œâ”€â”€ wsgi.py / asgi.py     # entry point untuk deployment
+â”‚
+â”œâ”€â”€ core/                     # APP: user & autentikasi admin
+â”‚   â”œâ”€â”€ models.py             # UserProfile (role: superadmin/petugas/verifikator)
+â”‚   â”œâ”€â”€ admin.py              # tampilan di Django Admin
+â”‚   â”œâ”€â”€ serializers.py        # konversi model <-> JSON untuk API
+â”‚   â”œâ”€â”€ views.py              # endpoint /api/core/me/ (data user login)
+â”‚   â””â”€â”€ urls.py
+â”‚
+â”œâ”€â”€ knowledge/                # APP: sumber data untuk RAG chatbot
+â”‚   â”œâ”€â”€ models.py             # KategoriKI, DokumenResmi, ChunkEmbedding, FAQ
+â”‚   â”œâ”€â”€ admin.py / serializers.py / views.py / urls.py
+â”‚
+â”œâ”€â”€ trademark/                # APP: mirror data PDKI & log cek merek
+â”‚   â”œâ”€â”€ models.py             # MirrorPDKI, CekMerekLog
+â”‚   â”œâ”€â”€ admin.py / serializers.py / views.py / urls.py
+â”‚
+â”œâ”€â”€ chatbot/                  # APP: log percakapan chatbot
+â”‚   â”œâ”€â”€ models.py             # PercakapanChatbot
+â”‚   â”œâ”€â”€ admin.py / serializers.py / views.py / urls.py
 ```
 
 **Kenapa strukturnya begini?**
 - Folder `sikapki/` HANYA berisi konfigurasi project (settings, routing utama).
   Ini bukan tempat menaruh logic bisnis.
 - Setiap "app" (`core`, `knowledge`, `trademark`, `chatbot`) itu modul mandiri
-  dengan tanggung jawab jelas — sengaja dipisah per domain, bukan per jenis
+  dengan tanggung jawab jelas - sengaja dipisah per domain, bukan per jenis
   file, supaya kamu gampang cari kode ("mau edit soal merek? buka folder
   `trademark/`, selesai").
-- Tiap app polanya SAMA PERSIS: `models.py` (struktur data) → `serializers.py`
-  (bentuk JSON untuk API) → `views.py` (logic endpoint) → `urls.py` (alamat
-  endpoint) → `admin.py` (biar bisa dikelola lewat Django Admin tanpa bikin
+- Tiap app polanya SAMA PERSIS: `models.py` (struktur data) -> `serializers.py`
+  (bentuk JSON untuk API) -> `views.py` (logic endpoint) -> `urls.py` (alamat
+  endpoint) -> `admin.py` (biar bisa dikelola lewat Django Admin tanpa bikin
   UI sendiri dulu). Sekali kamu paham pola ini, semua app terasa familiar.
 
 ## 2. Setup Awal (jalankan di komputer kamu)
@@ -96,11 +96,11 @@ GRANT ALL PRIVILEGES ON DATABASE sikapki_db TO sikapki_user;
 cp .env.example .env
 ```
 Lalu edit `.env` dan isi:
-- `SECRET_KEY` — generate dengan:
+- `SECRET_KEY` - generate dengan:
   ```bash
   python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
   ```
-- `DATABASE_URL` — sesuaikan dengan user/password/db PostgreSQL kamu, format:
+- `DATABASE_URL` - sesuaikan dengan user/password/db PostgreSQL kamu, format:
   `postgres://USER:PASSWORD@HOST:PORT/NAME`
 
 ### e. Migrasi database
@@ -141,7 +141,7 @@ Semua endpoint CRUD di atas otomatis mendukung format list + pagination
 (20 data per halaman) berkat DRF `DefaultRouter` + `ModelViewSet`.
 
 Catatan: `ChunkEmbedding` (app `knowledge`) sengaja belum diekspos lewat API
-publik — model ini akan diisi/dibaca secara internal oleh modul RAG nanti
+publik - model ini akan diisi/dibaca secara internal oleh modul RAG nanti
 (bukan lewat CRUD manual dari frontend).
 
 ## 4. Data Contoh (Seed Demo Data)
@@ -207,3 +207,5 @@ Provider AI dan sumber DJKI memiliki retry dengan backoff. Isi
 melalui Django Admin dicatat pada **Audit Log Admin**. Endpoint pencarian mirror
 mendukung pagination dan filter `q`, `kelas_nice`, `status`, `sumber_data`,
 `ada_uraian`, `ada_nomor`, serta `ada_etiket`.
+
+

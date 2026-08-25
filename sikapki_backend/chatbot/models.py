@@ -1,4 +1,4 @@
-from django.conf import settings
+﻿from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
@@ -8,7 +8,7 @@ import uuid
 class PercakapanChatbot(models.Model):
     """
     Satu pasang tanya-jawab dengan chatbot RAG. Berbeda dari desain
-    percakapan multi-turn (Conversation+Message) sebelumnya — di sini
+    percakapan multi-turn (Conversation+Message) sebelumnya - di sini
     setiap baris merepresentasikan satu interaksi tanya-jawab yang berdiri
     sendiri, sesuai skema di proposal. `sumber_dokumen` menyimpan daftar
     dokumen/FAQ yang disitasi AI saat menyusun jawaban, dan `dieskalasi`
@@ -39,6 +39,10 @@ class PercakapanChatbot(models.Model):
         help_text='Token acak untuk pelacakan status konsultasi oleh pengguna tanpa login.',
     )
     pertanyaan = models.TextField()
+    email_pengguna = models.EmailField(
+        blank=True,
+        help_text='Opsional. Dipakai hanya untuk pemberitahuan status konsultasi.',
+    )
     jawaban = models.TextField()
     sumber_dokumen = models.JSONField(
         default=list, blank=True,
@@ -91,7 +95,7 @@ class PercakapanChatbot(models.Model):
         ordering = ['-dibuat_pada']
 
     def __str__(self):
-        potongan = self.pertanyaan[:60] + ('…' if len(self.pertanyaan) > 60 else '')
+        potongan = self.pertanyaan[:60] + ('...' if len(self.pertanyaan) > 60 else '')
         return potongan
 
     def save(self, *args, **kwargs):
@@ -152,3 +156,5 @@ class TindakLanjutKonsultasiLog(models.Model):
 
     def __str__(self):
         return f'{self.percakapan_id}: {self.status_sebelum} -> {self.status_sesudah}'
+
+
