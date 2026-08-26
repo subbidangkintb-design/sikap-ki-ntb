@@ -40,6 +40,10 @@ ESCALATION_MESSAGE = (
 
 class ChatbotViewSet(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
+    # Public chatbot endpoints do not use Django session authentication.
+    # This prevents an unrelated admin session cookie from triggering CSRF
+    # checks on the public JSON POST requests.
+    authentication_classes = []
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'chatbot'
 

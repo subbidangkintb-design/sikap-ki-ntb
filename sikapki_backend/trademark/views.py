@@ -111,6 +111,9 @@ class MirrorPDKIViewSet(viewsets.ReadOnlyModelViewSet):
 
 class CekMerekAIViewSet(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
+    # This endpoint is intentionally public and rate-limited; do not bind it
+    # to browser session authentication, which would require a CSRF token.
+    authentication_classes = []
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'cek_merek'
 
