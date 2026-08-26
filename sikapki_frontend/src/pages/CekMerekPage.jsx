@@ -306,6 +306,8 @@ export default function CekMerekPage() {
                 onEscalate={handleEscalateClass}
                 isEscalating={isEscalating}
                 escalation={escalation}
+                emailPengguna={emailPengguna}
+                onEmailPenggunaChange={setEmailPengguna}
               />
             ) : null}
             {result && !isLoading && mode === 'similarity' ? <SimilarityResult result={result} /> : null}
@@ -325,7 +327,7 @@ function FlowStep({ number, title, text }) {
   )
 }
 
-function ClassificationResult({ result, additionalDetail, onAdditionalDetailChange, onClarify, onEscalate, isEscalating, escalation }) {
+function ClassificationResult({ result, additionalDetail, onAdditionalDetailChange, onClarify, onEscalate, isEscalating, escalation, emailPengguna, onEmailPenggunaChange }) {
   const recommendations = result.rekomendasi_kelas || []
   return (
     <div className="space-y-4">
@@ -388,7 +390,7 @@ function ClassificationResult({ result, additionalDetail, onAdditionalDetailChan
         <p className="font-black text-amber-950">Masih ragu dengan kelas atau uraian?</p>
         <p className="mt-1 text-sm leading-6 text-amber-900">Sesuai SOP, hasil ini dapat diteruskan kepada Petugas Helpdesk KI untuk ditinjau. Petugas memberi arahan awal berdasarkan sumber resmi, bukan keputusan pemeriksaan DJKI.</p>
         <label htmlFor="email-konsultasi" className="mt-3 block text-sm font-bold text-amber-950">Email untuk menerima pembaruan (opsional)</label>
-        <input id="email-konsultasi" type="email" value={emailPengguna} onChange={(event) => setEmailPengguna(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-amber-300 bg-white px-3 text-sm outline-none focus:border-gov-teal focus:ring-2 focus:ring-gov-mint" placeholder="nama@contoh.go.id" />
+        <input id="email-konsultasi" type="email" value={emailPengguna} onChange={(event) => onEmailPenggunaChange(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-amber-300 bg-white px-3 text-sm outline-none focus:border-gov-teal focus:ring-2 focus:ring-gov-mint" placeholder="nama@contoh.go.id" />
         <button type="button" onClick={onEscalate} disabled={isEscalating || Boolean(escalation)} className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-amber-700 px-4 text-sm font-black text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-60">
           {isEscalating ? <Loader2 className="animate-spin" size={18} /> : <MessageCircle size={18} />}
           {escalation ? 'Sudah diteruskan ke petugas' : 'Minta bantuan Petugas Helpdesk KI'}
