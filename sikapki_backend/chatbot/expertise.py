@@ -155,7 +155,11 @@ def enrich_retrieval_query(question: str, profile: ExpertiseProfile) -> str:
 
 
 def _looks_context_dependent(text):
-    return bool(re.search(r'\b(itu|ini|tersebut|tadi|syaratnya|biayanya|prosesnya|selanjutnya)\b', text))
+    return bool(re.search(
+        r'\b(itu|ini|tersebut|tadi|syaratnya|syarat\s+nya|biayanya|biaya\s+nya|'
+        r'prosesnya|proses\s+nya|persyaratannya|persyaratan\s+nya|selanjutnya)\b',
+        text,
+    ))
 
 
 def _normalize(value):

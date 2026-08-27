@@ -352,6 +352,7 @@ def _is_context_dependent_question(pertanyaan):
 
     reference_patterns = (
         r'\b\w+nya\b',
+        r'\b(?:syarat|biaya|proses|persyaratan|dokumen)\s+nya\b',
         r'\b(itu|ini|tersebut|tadi|selanjutnya|kemudian)\b',
         r'\b(lalu|terus)\b',
         r'\b(bagaimana|gimana) kalau\b',

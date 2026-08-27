@@ -104,6 +104,7 @@ class ChatbotConfidenceTests(SimpleTestCase):
 
     def test_common_indonesian_references_are_context_dependent(self):
         self.assertTrue(_is_context_dependent_question('Apa saja syaratnya?'))
+        self.assertTrue(_is_context_dependent_question('Biaya nya berapa?'))
         self.assertTrue(_is_context_dependent_question('Setelah itu bagaimana?'))
         self.assertFalse(_is_context_dependent_question('Apa itu merek kolektif?'))
 
