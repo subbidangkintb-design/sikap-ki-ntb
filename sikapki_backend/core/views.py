@@ -279,6 +279,9 @@ class HealthCheckView(APIView):
 
 class UjiCobaPenggunaView(APIView):
     permission_classes = [permissions.AllowAny]
+    # Endpoint evaluasi bersifat publik dan tidak menggunakan session login.
+    # Tanpa ini, cookie session admin dapat memicu pemeriksaan CSRF pada POST.
+    authentication_classes = []
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'uji_pengguna'
 
