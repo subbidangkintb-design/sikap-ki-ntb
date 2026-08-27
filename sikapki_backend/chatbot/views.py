@@ -240,6 +240,15 @@ def _required_confidence(expertise):
     if expertise.high_stakes:
         return max(SIMILARITY_THRESHOLD, 0.68)
     if expertise.intent in {'biaya', 'jangka_waktu'}:
+        if (
+            expertise.intent == 'biaya'
+            and str(getattr(settings, 'EMBEDDING_PROVIDER', 'gemini')).lower()
+            in {'local', 'sentence-transformers', 'sentence_transformers'}
+        ):
+            return max(
+                SIMILARITY_THRESHOLD,
+                float(getattr(settings, 'LOCAL_BIAYA_REQUIRED_CONFIDENCE', 0.62)),
+            )
         return max(SIMILARITY_THRESHOLD, 0.64)
     return SIMILARITY_THRESHOLD
 
