@@ -22,6 +22,7 @@ def _djki_sources(category, slug):
 
 
 OFFICIAL_SOURCES = (
+    *_djki_sources('Merek', 'merek'),
     *_djki_sources('Hak Cipta', 'hak-cipta'),
     *_djki_sources('Paten', 'paten'),
     *_djki_sources('Desain Industri', 'desain-industri'),
