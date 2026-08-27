@@ -246,6 +246,22 @@ PDF_OCR_WITH_GEMINI = env.bool('PDF_OCR_WITH_GEMINI', default=True)
 PDF_OCR_BATCH_PAGES = env.int('PDF_OCR_BATCH_PAGES', default=3)
 GEMINI_OCR_MODEL = env('GEMINI_OCR_MODEL', default='gemini-3.1-flash-lite')
 
+# Embedding knowledge base. Provider lokal memakai Sentence Transformers
+# sehingga indexing dan pencarian tidak mengurangi kuota Gemini.
+EMBEDDING_PROVIDER = env('EMBEDDING_PROVIDER', default='gemini')
+LOCAL_EMBEDDING_MODEL = env(
+    'LOCAL_EMBEDDING_MODEL',
+    default='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
+)
+LOCAL_EMBEDDING_DEVICE = env('LOCAL_EMBEDDING_DEVICE', default='cpu')
+LOCAL_EMBEDDING_BATCH_SIZE = env.int('LOCAL_EMBEDDING_BATCH_SIZE', default=16)
+LOCAL_EMBEDDING_CACHE = env(
+    'LOCAL_EMBEDDING_CACHE', default=str(BASE_DIR / 'embedding_models'),
+)
+EMBEDDING_CHUNK_SIZE = env.int('EMBEDDING_CHUNK_SIZE', default=500)
+EMBEDDING_CHUNK_OVERLAP = env.int('EMBEDDING_CHUNK_OVERLAP', default=50)
+CHROMA_COLLECTION_NAME = env('CHROMA_COLLECTION_NAME', default='knowledge_chunks')
+
 DEEPSEEK_API_KEY = env('DEEPSEEK_API_KEY', default='')
 DEEPSEEK_BASE_URL = env('DEEPSEEK_BASE_URL', default='https://api.deepseek.com')
 DJKI_REQUEST_RETRIES = env.int('DJKI_REQUEST_RETRIES', default=3)

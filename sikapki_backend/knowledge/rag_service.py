@@ -5,6 +5,7 @@ import io
 import re
 import logging
 import math
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -19,12 +20,14 @@ from core.http_client import configure_ai_network
 from .models import ChunkEmbedding, DokumenResmi, FAQ
 
 
-CHROMA_COLLECTION_NAME = 'knowledge_chunks'
+CHROMA_COLLECTION_NAME = getattr(settings, 'CHROMA_COLLECTION_NAME', 'knowledge_chunks')
 
 logger = logging.getLogger(__name__)
 
 _chroma_client = None
 _chroma_collection = None
+_local_embedding_model = None
+_local_embedding_lock = threading.Lock()
 
 
 def chunk_document(teks: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
@@ -87,7 +90,11 @@ def embed_and_store(dokumen_id: int) -> int:
                 f'Teks dokumen melebihi batas aman {max_text_chars:,} karakter. '
                 'Pecah dokumen menjadi beberapa bagian.',
             )
-        chunks = chunk_document(teks)
+        chunks = chunk_document(
+            teks,
+            chunk_size=max(20, int(getattr(settings, 'EMBEDDING_CHUNK_SIZE', 500))),
+            overlap=max(0, int(getattr(settings, 'EMBEDDING_CHUNK_OVERLAP', 50))),
+        )
         if not chunks:
             raise RuntimeError(
                 'Tidak ada teks yang dapat diekstrak. Jika PDF berupa hasil scan, jalankan OCR terlebih dahulu.',
@@ -264,7 +271,64 @@ def get_chroma_collection():
 
 
 def generate_embeddings(texts: list[str]) -> list[list[float]]:
-    """Generate normalized embeddings through Gemini without a local AI model."""
+    """Generate normalized embeddings through the configured provider."""
+    if not texts:
+        return []
+    provider = str(getattr(settings, 'EMBEDDING_PROVIDER', 'gemini')).strip().lower()
+    if provider in {'local', 'sentence-transformers', 'sentence_transformers'}:
+        return _generate_local_embeddings(texts)
+    return _generate_gemini_embeddings(texts)
+
+
+def _generate_local_embeddings(texts: list[str]) -> list[list[float]]:
+    """Generate CPU embeddings with a multilingual Sentence Transformers model."""
+    try:
+        model = _get_local_embedding_model()
+        vectors = model.encode(
+            texts,
+            batch_size=max(1, int(getattr(settings, 'LOCAL_EMBEDDING_BATCH_SIZE', 16))),
+            show_progress_bar=False,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            'Embedding lokal gagal. Pastikan sentence-transformers terpasang dan '
+            'model dapat diunduh atau sudah tersedia di cache.'
+        ) from exc
+
+    if len(texts) == 1 and getattr(vectors, 'ndim', 2) == 1:
+        vectors = [vectors]
+    return [list(map(float, vector)) for vector in vectors]
+
+
+def _get_local_embedding_model():
+    global _local_embedding_model
+    if _local_embedding_model is not None:
+        return _local_embedding_model
+    with _local_embedding_lock:
+        if _local_embedding_model is None:
+            try:
+                from sentence_transformers import SentenceTransformer
+            except ImportError as exc:
+                raise RuntimeError(
+                    'sentence-transformers belum terpasang. Jalankan pip install -r requirements.txt.'
+                ) from exc
+            cache_folder = getattr(settings, 'LOCAL_EMBEDDING_CACHE', '') or None
+            _local_embedding_model = SentenceTransformer(
+                getattr(
+                    settings,
+                    'LOCAL_EMBEDDING_MODEL',
+                    'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
+                ),
+                device=getattr(settings, 'LOCAL_EMBEDDING_DEVICE', 'cpu'),
+                cache_folder=cache_folder,
+            )
+    return _local_embedding_model
+
+
+def _generate_gemini_embeddings(texts: list[str]) -> list[list[float]]:
+    """Generate normalized embeddings through Gemini."""
     if not settings.GEMINI_API_KEY:
         raise RuntimeError('GEMINI_API_KEY belum diisi di file .env.')
 
