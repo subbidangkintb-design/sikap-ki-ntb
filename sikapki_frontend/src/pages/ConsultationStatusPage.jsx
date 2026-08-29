@@ -32,6 +32,17 @@ export default function ConsultationStatusPage() {
 
   useEffect(() => { load() }, [load])
 
+  const currentStatus = data?.status
+
+  useEffect(() => {
+    if (!currentStatus || currentStatus === 'selesai') return undefined
+    const timerId = window.setInterval(() => {
+      // Poll silently so the status page remains readable while waiting.
+      getStatusKonsultasi(pelacakanId).then(setData).catch(() => {})
+    }, 15000)
+    return () => window.clearInterval(timerId)
+  }, [currentStatus, pelacakanId])
+
   const activeIndex = Math.max(0, steps.findIndex(([status]) => status === data?.status))
   return (
     <>
@@ -44,7 +55,10 @@ export default function ConsultationStatusPage() {
             <div className="rounded-2xl border border-gov-line bg-white p-6 shadow-soft">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Nomor konsultasi</p><h2 className="mt-1 text-2xl font-black text-gov-navy">{data.kode_konsultasi}</h2></div>
-                <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-gov-line px-3 py-2 text-sm font-bold text-gov-blue"><RefreshCw size={16} /> Perbarui</button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-xs text-slate-500">diperbarui otomatis tiap 15 detik</span>
+                  <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-gov-line px-3 py-2 text-sm font-bold text-gov-blue"><RefreshCw size={16} /> Perbarui</button>
+                </div>
               </div>
               <div className="mt-7 grid gap-3 sm:grid-cols-3">
                 {steps.map(([status, label, Icon], index) => {
