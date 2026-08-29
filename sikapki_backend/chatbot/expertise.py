@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 DOMAIN_TERMS = {
     'Merek': (
-        'merek', 'brand', 'logo', 'nama usaha', 'nama produk', 'kelas nice',
+        'merek', 'nama merek', 'brand', 'logo', 'nama usaha', 'nama produk', 'kelas nice',
         'merek dagang', 'merek jasa',
     ),
     'Hak Cipta': (
@@ -55,7 +55,11 @@ INTENT_TERMS = {
     'biaya': ('biaya', 'tarif', 'pnbp', 'bayar', 'pembayaran'),
     'jangka_waktu': ('berapa lama', 'jangka waktu', 'masa berlaku', 'kedaluwarsa', 'daluarsa'),
     'definisi': ('apa itu', 'pengertian', 'definisi', 'dimaksud dengan'),
-    'pemilihan_rezim': ('cocok', 'jenis ki', 'dilindungi apa', 'perlindungan apa', 'daftar apa'),
+    'pemilihan_rezim': (
+        'cocok', 'cocoknya', 'bagusnya', 'sebaiknya', 'paling tepat', 'yang tepat',
+        'jenis ki', 'dilindungi apa', 'perlindungan apa', 'daftar apa',
+        'daftarkan kemana', 'didaftarkan kemana', 'pilih yang mana',
+    ),
     'pelanggaran': ('pelanggaran', 'menjiplak', 'meniru', 'dipakai tanpa izin', 'sengketa', 'gugat'),
     'lisensi_pengalihan': ('lisensi', 'pengalihan', 'jual hak', 'waris', 'royalti'),
     'perbandingan': ('perbedaan', 'beda', 'dibandingkan', 'versus', ' vs '),
@@ -100,9 +104,23 @@ def analyze_question(question: str, history=None) -> ExpertiseProfile:
         (sum(_contains_term(normalized, term) for term in terms), intent)
         for intent, terms in INTENT_TERMS.items()
     ]
-    intent_score, intent = max(intent_scores, default=(0, 'informasi_umum'))
+    intent_priority = {
+        'pemilihan_rezim': 3,
+        'perbandingan': 2,
+        'prosedur': 1,
+    }
+    intent_score, intent = max(
+        intent_scores,
+        key=lambda item: (item[0], intent_priority.get(item[1], 0)),
+        default=(0, 'informasi_umum'),
+    )
     if intent_score == 0:
         intent = 'informasi_umum'
+
+    # A recommendation/comparison must retain every explicitly named KI type;
+    # detailed wording about one object should not hide the alternatives.
+    if intent in {'pemilihan_rezim', 'perbandingan'}:
+        domains = tuple(domain for _, domain in scored[:3])
 
     asks_for_protection = any(_contains_term(normalized, term) for term in (
         'lindungi', 'melindungi', 'perlindungan', 'daftar', 'mendaftarkan',

@@ -263,7 +263,11 @@ def _has_domain_coverage(chunks, expertise):
             domain, str((chunk.get('metadata') or {}).get('kategori', '')).lower(),
         ) for chunk in chunks)
     }
-    required = len(expertise.domains) if expertise.intent == 'perbandingan' else 1
+    required = (
+        len(expertise.domains)
+        if expertise.intent in {'pemilihan_rezim', 'perbandingan'}
+        else 1
+    )
     return len(covered) >= required
 
 
@@ -314,6 +318,11 @@ def _rerank_chunks(pertanyaan, riwayat, chunks, limit=8, expertise=None):
         intent_terms = ['pelanggaran', 'sengketa', 'penegakan', 'pengaduan', 'bukti']
     elif detected_intent == 'lisensi_pengalihan':
         intent_terms = ['lisensi', 'pengalihan', 'pencatatan', 'perjanjian', 'pemegang hak']
+    elif detected_intent in {'pemilihan_rezim', 'perbandingan'}:
+        intent_terms = [
+            'objek', 'perlindungan', 'jenis ki', 'merek', 'hak cipta',
+            'indikasi geografis', 'logo', 'nama usaha', 'produk khas',
+        ]
 
     scored = []
     for position, chunk in enumerate(chunks):
@@ -441,6 +450,8 @@ def _build_prompt(pertanyaan, chunks, riwayat=None, expertise=None):
         'Jika konteks tidak cukup untuk menjawab, katakan terus terang bahwa Anda tidak tahu berdasarkan konteks yang tersedia.\n'
         'Bedakan dengan tegas antara hak yang timbul otomatis, pencatatan, pendaftaran, permohonan, dan pemeriksaan; gunakan hanya istilah yang didukung konteks.\n'
         'Untuk pertanyaan yang dapat melibatkan lebih dari satu jenis KI, jelaskan setiap kemungkinan secara terpisah dan jangan memaksakan satu jenis pelindungan.\n'
+        'Untuk kebutuhan pemilihan jenis KI, mulai dari objek yang ingin dilindungi, sebutkan pilihan yang paling relevan, '
+        'jelaskan pilihan alternatif dan batasnya, lalu ajukan pertanyaan klarifikasi yang membantu pengguna menentukan langkah berikutnya.\n'
         'Untuk sengketa, dugaan pelanggaran, kontrak, lisensi, tenggat, atau kasus pribadi, berikan informasi umum, sebutkan fakta yang perlu diperiksa, dan arahkan ke petugas; jangan memberi kesimpulan hukum.\n'
         'Angka biaya, jangka waktu, masa pelindungan, pasal, dan tenggat hanya boleh disebut jika tertulis jelas dalam konteks.\n'
         'Percakapan dapat berlangsung beberapa giliran. Pahami kata rujukan seperti "itu", "syaratnya", "biayanya", atau "selanjutnya" dari RIWAYAT PERCAKAPAN.\n'

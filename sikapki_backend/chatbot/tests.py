@@ -42,6 +42,18 @@ class KIExpertiseRoutingTests(SimpleTestCase):
         self.assertTrue(profile.needs_clarification)
         self.assertIn('objek apa', build_clarification_message())
 
+    def test_routes_protection_type_recommendation_across_domains(self):
+        profile = analyze_question(
+            'Usaha kedai kopi dengan nama merek LUMIHAUS bagusnya didaftarkan '
+            'sebagai Hak Cipta, merek, atau indikasi geografis?',
+        )
+
+        self.assertEqual(profile.intent, 'pemilihan_rezim')
+        self.assertIn('Merek', profile.domains)
+        self.assertIn('Hak Cipta', profile.domains)
+        self.assertIn('Indikasi Geografis', profile.domains)
+        self.assertFalse(profile.needs_clarification)
+
     def test_high_stakes_dispute_is_detected(self):
         profile = analyze_question('Logo merek saya dipakai tanpa izin, apakah harus gugat?')
 
