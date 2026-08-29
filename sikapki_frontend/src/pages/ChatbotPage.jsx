@@ -9,22 +9,51 @@ import TextToSpeechButton from '../components/TextToSpeechButton.jsx'
 import { kirimRating, tanyaChatbot } from '../lib/api.js'
 import { HELPDESK_WHATSAPP_URL } from '../config/service.js'
 
+const CHAT_STATE_KEY = 'sikapki-chatbot-session'
+const LOADING_STAGES = [
+  'sedang memahami pertanyaan anda',
+  'sedang menelusuri sumber resmi',
+  'sedang menyusun jawaban yang paling relevan',
+]
+const DEFAULT_QUICK_PROMPTS = [
+  'apa saja syarat daftar merek',
+  'berapa biaya pendaftaran merek',
+  'merek atau hak cipta untuk logo',
+]
+
 export default function ChatbotPage() {
-  const [messages, setMessages] = useState(createInitialMessages)
+  const savedChat = loadChatState()
+  const [messages, setMessages] = useState(() => savedChat?.messages?.length ? savedChat.messages : createInitialMessages())
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [loadingStage, setLoadingStage] = useState(0)
   const [error, setError] = useState('')
   const formRef = useRef(null)
-  const sessionIdRef = useRef(createSessionId())
+  const inputRef = useRef(null)
+  const sessionIdRef = useRef(savedChat?.sessionId || createSessionId())
   const messageEndRef = useRef(null)
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [messages, isLoading])
 
-  async function handleSubmit(event) {
-    event.preventDefault()
-    const question = input.trim()
+  useEffect(() => {
+    saveChatState({ sessionId: sessionIdRef.current, messages })
+  }, [messages])
+
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingStage(0)
+      return undefined
+    }
+    const timerId = window.setInterval(() => {
+      setLoadingStage((current) => (current + 1) % LOADING_STAGES.length)
+    }, 1800)
+    return () => window.clearInterval(timerId)
+  }, [isLoading])
+
+  async function submitQuestion(rawQuestion) {
+    const question = rawQuestion.trim()
     if (!question || isLoading) return
 
     setInput('')
@@ -46,6 +75,7 @@ export default function ChatbotPage() {
           text: typeof response.jawaban === 'string' ? response.jawaban : String(response.jawaban || ''),
           sources,
           escalated: Boolean(response.dieskalasi),
+          suggestions: response.dieskalasi ? [] : getSuggestedPrompts(question, response.jawaban),
           rating: null,
           trackingId: response.pelacakan_id || null,
           consultationCode: response.kode_konsultasi || null,
@@ -55,6 +85,22 @@ export default function ChatbotPage() {
       setError(err.message)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    await submitQuestion(input)
+  }
+
+  function handleInputKeyDown(event) {
+    if (
+      event.key === 'Enter'
+      && !event.shiftKey
+      && !event.nativeEvent.isComposing
+    ) {
+      event.preventDefault()
+      submitQuestion(input)
     }
   }
 
@@ -81,6 +127,8 @@ export default function ChatbotPage() {
     setMessages(createInitialMessages())
     setInput('')
     setError('')
+    clearChatState()
+    window.setTimeout(() => inputRef.current?.focus(), 0)
   }
 
   return (
@@ -109,12 +157,19 @@ export default function ChatbotPage() {
           <div className="h-[52dvh] min-h-[320px] overflow-y-auto overscroll-contain p-3 sm:h-[58vh] sm:min-h-[420px] sm:p-4 md:p-6">
             <div className="space-y-5" role="log" aria-live="polite" aria-relevant="additions" aria-label="Percakapan chatbot">
               {messages.map((message) => (
-                <ChatMessage key={message.id} message={message} onRating={handleRating} />
+                <ChatMessage key={message.id} message={message} onRating={handleRating} onQuickPrompt={submitQuestion} />
               ))}
               {isLoading ? (
-                <div className="flex items-center gap-3 text-sm text-slate-600" role="status">
-                  <Loader2 className="h-5 w-5 animate-spin text-gov-teal" aria-hidden="true" />
-                  Sedang menelusuri sumber dan menyusun jawaban...
+                <div className="flex items-center gap-3 text-sm text-slate-600" role="status" aria-live="polite">
+                  <span className="flex items-center gap-1 rounded-2xl border border-gov-line bg-gov-paper px-3 py-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-gov-teal" aria-hidden="true" />
+                    <span>{LOADING_STAGES[loadingStage]}</span>
+                    <span className="flex gap-0.5" aria-hidden="true">
+                      <span className="h-1 w-1 animate-bounce rounded-full bg-gov-teal [animation-delay:-0.3s]" />
+                      <span className="h-1 w-1 animate-bounce rounded-full bg-gov-teal [animation-delay:-0.15s]" />
+                      <span className="h-1 w-1 animate-bounce rounded-full bg-gov-teal" />
+                    </span>
+                  </span>
                 </div>
               ) : null}
               <div ref={messageEndRef} />
@@ -125,8 +180,10 @@ export default function ChatbotPage() {
               <label htmlFor="chat-input" className="sr-only">Pertanyaan</label>
               <textarea
                 id="chat-input"
+                ref={inputRef}
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
+                onKeyDown={handleInputKeyDown}
                 className="min-h-20 flex-1 rounded-md border border-gov-line px-3 py-3 outline-none focus:border-gov-teal focus:ring-2 focus:ring-gov-mint"
                 placeholder="Contoh: Apa saja syarat daftar merek?"
                 aria-describedby="chat-input-help"
@@ -141,7 +198,21 @@ export default function ChatbotPage() {
                 Kirim
               </button>
             </div>
-            <p id="chat-input-help" className="mt-2 text-xs leading-5 text-slate-500">Tekan <strong>Bicara</strong>, izinkan mikrofon, lalu ucapkan pertanyaan dalam Bahasa Indonesia. Audio ditangani layanan pengenal suara browser dan tidak disimpan oleh portal SIKAP-KI.</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Pertanyaan cepat">
+              <span className="mr-1 text-xs font-semibold text-slate-500">coba tanyakan</span>
+              {DEFAULT_QUICK_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => submitQuestion(prompt)}
+                  disabled={isLoading}
+                  className="rounded-full border border-gov-line bg-white px-3 py-1.5 text-xs font-semibold text-gov-blue transition hover:border-gov-teal hover:bg-gov-mint disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+            <p id="chat-input-help" className="mt-2 text-xs leading-5 text-slate-500">tekan enter untuk mengirim dan shift enter untuk baris baru atau gunakan tombol bicara audio tidak disimpan oleh portal sikap ki</p>
           </form>
         </div>
       </section>
@@ -163,7 +234,84 @@ function createInitialMessages() {
     text: 'Selamat datang di layanan informasi SIKAP-KI NTB. Silakan ajukan pertanyaan tentang Kekayaan Intelektual. Anda dapat melanjutkan dengan pertanyaan seperti "apa syaratnya?", "berapa biayanya?", atau "setelah itu bagaimana?".',
     sources: [],
     escalated: false,
+    suggestions: DEFAULT_QUICK_PROMPTS,
   }]
+}
+
+function loadChatState() {
+  if (typeof window === 'undefined') return null
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(CHAT_STATE_KEY) || 'null')
+    if (
+      parsed
+      && typeof parsed.sessionId === 'string'
+      && Array.isArray(parsed.messages)
+      && parsed.messages.length
+    ) return parsed
+  } catch {
+    // sessionStorage can be disabled by browser privacy settings
+  }
+  return null
+}
+
+function saveChatState(state) {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(CHAT_STATE_KEY, JSON.stringify(state))
+  } catch {
+    // The chat remains usable when storage is unavailable or full.
+  }
+}
+
+function clearChatState() {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.removeItem(CHAT_STATE_KEY)
+  } catch {
+    // Ignore storage errors; starting a new in-memory session still works.
+  }
+}
+
+function getSuggestedPrompts(question, answer = '') {
+  const questionText = question.toLowerCase()
+  const answerText = answer.toLowerCase()
+  const text = `${questionText} ${answerText}`
+  if (questionText.includes('hak cipta')) {
+    return [
+      'apa saja syarat pencatatan hak cipta',
+      'berapa biaya pencatatan hak cipta',
+      'apa yang bisa dilindungi hak cipta',
+    ]
+  }
+  if (questionText.includes('indikasi geografis')) {
+    return [
+      'apa syarat indikasi geografis',
+      'siapa yang dapat mengajukan indikasi geografis',
+      'bagaimana proses pengajuan indikasi geografis',
+    ]
+  }
+  if (questionText.includes('merek') || (!questionText.includes('hak cipta') && text.includes('merek'))) {
+    return [
+      'apa saja syarat daftar merek',
+      'berapa biaya pendaftaran merek',
+      'bagaimana memilih kelas merek',
+    ]
+  }
+  if (answerText.includes('hak cipta')) {
+    return [
+      'apa saja syarat pencatatan hak cipta',
+      'berapa biaya pencatatan hak cipta',
+      'apa yang bisa dilindungi hak cipta',
+    ]
+  }
+  if (answerText.includes('indikasi geografis')) {
+    return [
+      'apa syarat indikasi geografis',
+      'siapa yang dapat mengajukan indikasi geografis',
+      'bagaimana proses pengajuan indikasi geografis',
+    ]
+  }
+  return DEFAULT_QUICK_PROMPTS
 }
 
 function createSessionId() {
@@ -171,7 +319,7 @@ function createSessionId() {
   return `00000000-0000-4000-8000-${Date.now().toString().padStart(12, '0').slice(-12)}`
 }
 
-function ChatMessage({ message, onRating }) {
+function ChatMessage({ message, onRating, onQuickPrompt }) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -203,6 +351,7 @@ function ChatMessage({ message, onRating }) {
             <Link to={`/status-konsultasi/${message.trackingId}`} className="mt-2 inline-flex font-bold text-gov-blue hover:underline">Pantau tindak lanjut petugas →</Link>
           </div>
         ) : null}
+        <SuggestedPrompts prompts={message.suggestions} onSelect={onQuickPrompt} />
         <RatingControls message={message} onRating={onRating} />
       </div>
     )
@@ -233,7 +382,29 @@ function ChatMessage({ message, onRating }) {
             </div>
           </div>
         ) : null}
+        <SuggestedPrompts prompts={message.suggestions} onSelect={onQuickPrompt} />
         <RatingControls message={message} onRating={onRating} />
+      </div>
+    </div>
+  )
+}
+
+function SuggestedPrompts({ prompts = [], onSelect }) {
+  if (!prompts.length) return null
+  return (
+    <div className="mt-3 border-t border-gov-line pt-3">
+      <p className="mb-2 text-xs font-semibold text-slate-500">lanjutkan percakapan</p>
+      <div className="flex flex-wrap gap-2">
+        {prompts.map((prompt) => (
+          <button
+            key={prompt}
+            type="button"
+            onClick={() => onSelect(prompt)}
+            className="rounded-full border border-gov-line bg-white px-3 py-1.5 text-xs font-semibold text-gov-blue hover:border-gov-teal hover:bg-gov-mint"
+          >
+            {prompt}
+          </button>
+        ))}
       </div>
     </div>
   )
