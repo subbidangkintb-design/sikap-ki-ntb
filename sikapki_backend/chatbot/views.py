@@ -313,11 +313,22 @@ def _retrieve_candidates(retrieval_query, expertise):
     if expertise.intent == 'biaya' and provider in {
         'local', 'sentence-transformers', 'sentence_transformers',
     }:
-        queries.append(
-            f'Jenis KI: {expertise.domain_label}. '
-            'Biaya tarif PNBP resmi pendaftaran permohonan UMK umum per kelas '
-            'biaya layanan dan pembayaran.',
-        )
+        # Short questions such as "berapa biaya pendaftaran merek" often do
+        # not contain the wording used in the official tariff table (for
+        # example "per kelas" or "PNBP"). Search a few canonical variants so
+        # the relevant verified tariff chunk can be recalled without lowering
+        # the confidence gate.
+        queries.extend([
+            (
+                f'Jenis KI: {expertise.domain_label}. '
+                'Biaya pendaftaran merek per kelas tarif PNBP resmi '
+                'umum UMK biaya layanan dan pembayaran.'
+            ),
+            (
+                f'Dokumen resmi {expertise.domain_label} biaya layanan DJKI '
+                'tarif permohonan pendaftaran per kelas.'
+            ),
+        ])
 
     merged = {}
     for query in queries:
