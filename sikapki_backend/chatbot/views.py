@@ -85,7 +85,7 @@ class ChatbotViewSet(viewsets.ViewSet):
         retrieval_query = _build_retrieval_query(pertanyaan, riwayat, expertise)
 
         try:
-            candidates = retrieve_relevant_chunks(retrieval_query, top_k=24)
+            candidates = _retrieve_candidates(retrieval_query, expertise)
             chunks = _rerank_chunks(pertanyaan, riwayat, candidates, limit=10, expertise=expertise)
         except Exception as exc:
             return Response(
@@ -298,6 +298,46 @@ def _extract_sources(chunks):
             source['jenis'] = metadata['source_type']
         sources.append(source)
     return sources
+
+
+def _retrieve_candidates(retrieval_query, expertise):
+    """Retrieve the normal query plus a targeted variant for tariff questions.
+
+    Tariff pages often contain tables and abbreviated terms (PNBP, UMK, per
+    kelas) that do not closely resemble a user's short natural-language
+    question. A second local-embedding query improves recall without lowering
+    the safety gate or trusting unverified text.
+    """
+    queries = [retrieval_query]
+    provider = str(getattr(settings, 'EMBEDDING_PROVIDER', 'gemini')).lower()
+    if expertise.intent == 'biaya' and provider in {
+        'local', 'sentence-transformers', 'sentence_transformers',
+    }:
+        queries.append(
+            f'Jenis KI: {expertise.domain_label}. '
+            'Biaya tarif PNBP resmi pendaftaran permohonan UMK umum per kelas '
+            'biaya layanan dan pembayaran.',
+        )
+
+    merged = {}
+    for query in queries:
+        for chunk in retrieve_relevant_chunks(query, top_k=24):
+            metadata = chunk.get('metadata') or {}
+            key = chunk.get('vector_id') or (
+                f"{metadata.get('dokumen_id', '')}:{metadata.get('urutan', '')}:"
+                f"{chunk.get('text', '')[:120]}"
+            )
+            current = merged.get(key)
+            if current is None:
+                merged[key] = chunk
+                continue
+            old_distance = current.get('distance')
+            new_distance = chunk.get('distance')
+            if old_distance is None or (
+                new_distance is not None and float(new_distance) < float(old_distance)
+            ):
+                merged[key] = chunk
+    return list(merged.values())
 
 
 def _rerank_chunks(pertanyaan, riwayat, chunks, limit=8, expertise=None):

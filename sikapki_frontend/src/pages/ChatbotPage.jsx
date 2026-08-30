@@ -345,6 +345,7 @@ function ChatMessage({ message, onRating, onQuickPrompt }) {
         <a href={HELPDESK_WHATSAPP_URL} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#128c4a] px-4 py-2 text-sm font-bold text-white">
           <MessageCircle size={17} /> Hubungi Helpdesk KI Kanwil
         </a>
+        {message.trackingId ? <p className="mt-3 text-sm text-amber-900">petugas menerima konsultasi ini melalui ruang kerja admin simpan tautan pemantauan di bawah untuk melihat balasan petugas</p> : null}
         {message.trackingId ? (
           <div className="mt-3 rounded-lg border border-amber-300 bg-white p-3 text-sm">
             <p className="font-black">Nomor konsultasi: {message.consultationCode}</p>
