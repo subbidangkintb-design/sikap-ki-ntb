@@ -10,6 +10,7 @@ from pypdf import PdfWriter
 
 from .admin import DokumenResmiAdminForm
 from .faq_sync import FAQSyncError, ScrapedFAQ, parse_faq_page, sync_faq_items
+from .jdih_sync import infer_ki_category, parse_jdih_page
 from .official_sources import extract_official_page_text
 from .models import DokumenResmi, FAQ
 from .rag_service import (
@@ -60,6 +61,32 @@ class DocumentExtractionTests(SimpleTestCase):
         self.assertEqual(_get_document_text(dokumen), 'Teks hasil OCR')
         ocr_mock.assert_called_once()
 
+
+class JDIHDiscoveryTests(SimpleTestCase):
+    def test_infer_category_from_ki_title(self):
+        self.assertEqual(
+            infer_ki_category('Peraturan tentang pendaftaran merek dan tarif'),
+            'Merek',
+        )
+
+    def test_parser_keeps_only_allowed_absolute_links(self):
+        html = '''
+        <main>
+          <h1>Produk hukum KI</h1>
+          <a href="/files/uu-merek.pdf">Unduh UU Merek</a>
+          <a href="https://contoh.invalid/asing.pdf">Dokumen asing</a>
+        </main>
+        '''
+
+        links, headings = parse_jdih_page(
+            html,
+            'https://jdih.kemenkumhamri.com/produk-hukum',
+        )
+
+        self.assertEqual(links, [
+            ('https://jdih.kemenkumhamri.com/files/uu-merek.pdf', 'Unduh UU Merek'),
+        ])
+        self.assertEqual(headings, ['Produk hukum KI'])
 
 class DocumentValidationTests(TestCase):
     @patch('knowledge.rag_service.remove_document_from_index')

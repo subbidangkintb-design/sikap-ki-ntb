@@ -202,6 +202,40 @@ Perintah pendukung:
 .\.venv\Scripts\python.exe manage.py notify_overdue_consultations
 ```
 
+### Sinkronisasi dokumen JDIH secara aman
+
+Command berikut menyaring tautan dokumen yang judulnya mengandung jenis KI,
+kemudian menyimpan PDF yang ditemukan sebagai **Draf**. Dokumen tidak dipakai
+chatbot sebelum diverifikasi petugas di Django Admin. Jalankan preview terlebih
+dahulu:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py sync_jdih_ki --dry-run --max-documents 50
+```
+
+Jika portal memblokir crawler, ekspor manifest JSON dari API atau browser dengan
+format berikut lalu gunakan mode offline:
+
+```json
+[
+  {
+    "title": "Peraturan tentang pendaftaran merek",
+    "url": "https://jdih.kemenkumhamri.com/files/peraturan-merek.pdf",
+    "source_page": "https://jdih.kemenkumhamri.com/produk-hukum/123",
+    "status": "Berlaku"
+  }
+]
+```
+
+```powershell
+.\.venv\Scripts\python.exe manage.py sync_jdih_ki `
+  --manifest-file .\jdih-manifest.json --dry-run
+```
+
+Hapus `--dry-run` setelah daftar kandidat diperiksa. Semua dokumen baru tetap
+berstatus Draf; verifikasi dan antrekan indexing dari Admin. Gunakan jeda dan
+batas batch yang wajar, jangan melewati login atau proteksi situs sumber.
+
 Provider AI dan sumber DJKI memiliki retry dengan backoff. Isi
 `AI_FALLBACK_PROVIDER` hanya jika API key provider cadangan tersedia. Perubahan
 melalui Django Admin dicatat pada **Audit Log Admin**. Endpoint pencarian mirror
